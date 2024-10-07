@@ -1,0 +1,82 @@
+.program fdc
+.side_set 1 opt
+
+///////////////////////////////////////////////////////////
+// API documentions is located at
+// https://raspberrypi.github.io/pico-sdk-doxygen/
+///////////////////////////////////////////////////////////
+
+.wrap_target
+start:
+    nop side 0
+
+// wait for MREQ to go high (inactive)
+loop:
+    set y, 1        // input mask 
+    in pins, 5      // shift state of input (IN, RD, WR, OUT and MREQ) pins into isr
+    in null, 31     // set remaining isr bits to zero
+    mov x, isr
+    jmp x!=y loop
+
+// wait for MREQ to be low (active)
+    wait 0 pin 4
+
+// activate wait control; and
+// wait for RD or WR to go low
+wait_rdwr:
+    set y, 3 side 1
+wait_rdwr_low:
+    in pins, 3     // shift state of input pins into isr
+    in null, 30    // rotate RD to bit 0 and WR to bit 1
+    mov x, isr
+    jmp x!=y check_rdwr
+    jmp wait_rdwr_low
+
+check_rdwr:
+    push            // signal RD/WR request to memory task
+
+// if wr then don't delay
+    set y, 2
+    jmp x!=y release
+
+    set x, 7
+rddelay:
+    jmp x-- rddelay [6]
+
+// realease wait
+release:
+    nop side 0
+
+// wait for RD and WR to be high
+    set y, 3
+wait_rdwr_high:
+    in pins, 3     // shift state of RD/WR pins into isr
+    in null, 30    // rotate RD to bit 0 and WR to bit 1
+    mov x, isr
+    jmp x!=y wait_rdwr_high
+
+    push            // signal RD/WR wait is over
+
+.wrap
+
+% c-sdk {
+
+void fdc_program_init(PIO pio, uint sm, uint offset, pio_sm_config* pc) {
+    uint in_pin = 10;      // IN
+    uint sideset_pin = 1;  // WAIT
+
+    *pc = fdc_program_get_default_config(offset);
+
+    pio_gpio_init(pio, in_pin);
+    pio_gpio_init(pio, sideset_pin);
+
+    sm_config_set_in_pins(pc, in_pin);               // first pin associated with the in instruction
+    sm_config_set_sideset_pins(pc, sideset_pin);     // first pin associated with the side option
+
+    pio_sm_set_consecutive_pindirs(pio, sm, in_pin, 5, false);          // specify the first and number of input pins
+    pio_sm_set_consecutive_pindirs(pio, sm, sideset_pin, 1, true);      // specify the first and number of output pins
+
+    pio_sm_init(pio, sm, offset, pc);
+}
+
+%}
