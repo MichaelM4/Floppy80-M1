@@ -4,6 +4,21 @@
 
 #include <stdio.h>
 
+typedef signed char        	int8_t;
+typedef unsigned char		    uint8_t;
+typedef short              	int16_t;
+typedef unsigned short     	uint16_t;
+typedef long               	int32_t;
+typedef unsigned long      	uint32_t;
+typedef long long          	int64_t;
+typedef unsigned long long 	uint64_t;
+
+typedef unsigned char       BOOL;
+//typedef unsigned char       bool;
+typedef unsigned char		    byte;
+typedef unsigned short     	word;
+typedef unsigned long      	dword;
+
 #define SizeOfArray(x) (sizeof(x) / sizeof(x[0]))
 
 // set to 1 to enable capture of bus activity logging to sd-card
@@ -155,6 +170,8 @@ extern uint64_t g_nTimeEnd;
 extern uint64_t g_nTimeDiff;
 
 extern uint8_t  sd_byCardInialized;
+
+extern byte     g_byGenerate_Intr;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

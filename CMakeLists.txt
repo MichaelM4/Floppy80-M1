@@ -59,6 +59,10 @@ target_link_libraries(Floppy80
     FatFs_SPI
 )
 
+# Enable usb output, disable uart output
+pico_enable_stdio_usb(${PROJECT_NAME} 1)
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
+
 if (PICO_CYW43_SUPPORTED)
     target_link_libraries(Floppy80 pico_cyw43_arch_none)
 endif()

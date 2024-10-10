@@ -1,9 +1,9 @@
-#include "pch.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+#include "hardware/gpio.h"
 
 #include "defines.h"
 #include "datetime.h"
@@ -11,6 +11,10 @@
 #include "system.h"
 #include "crc.h"
 #include "fdc.h"
+
+// extern CpuType cpu;
+// extern int g_nModel;
+// extern byte g_byMemory[0x10000];
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -159,12 +163,6 @@ uint64_t g_nMaxSeekTime;
 uint32_t g_dwPrevTraceCycleCount = 0;
 char     g_szBootConfig[80];
 BYTE     g_byBootConfigModified;
-
-//-----------------------------------------------------------------------------
-void ActivateWait(void)
-{
-//	cpu.wait = 1;
-}
 
 //-----------------------------------------------------------------------------
 int FdcGetDriveIndex(int nDriveSel)
@@ -1088,14 +1086,13 @@ void FdcLoadIni(void)
 	char  szLine[256];
 	char  szSection[16];
 	char  szLabel[128];
-	char  cfg_file[12] = {"boot.cfg"};
 	char* psz;
 	int   nLen;
 
 	g_byBootConfigModified = FALSE;
 
 	// read the default ini file to load on init
-	f = FileOpen(cfg_file, FA_READ);
+	f = FileOpen("boot.cfg", FA_READ);
 	
 	if (f == NULL)
 	{
@@ -1103,7 +1100,7 @@ void FdcLoadIni(void)
 	}
 
 	// open the ini file specified in boot.cfg
-	nLen = FileReadLine(f, g_szBootConfig, sizeof(g_szBootConfig)-2);
+	nLen = FileReadLine(f, (BYTE*)g_szBootConfig, sizeof(g_szBootConfig)-2);
 	FileClose(f);
 
 	f = FileOpen(g_szBootConfig, FA_READ);
@@ -1113,7 +1110,7 @@ void FdcLoadIni(void)
 		return;
 	}
 	
-	nLen = FileReadLine(f, szLine, 126);
+	nLen = FileReadLine(f, (BYTE*)szLine, 126);
 	
 	while (nLen >= 0)
 	{
@@ -1130,7 +1127,7 @@ void FdcLoadIni(void)
 			FdcProcessConfigEntry(szLabel, psz);
 		}
 
-		nLen = FileReadLine(f, szLine, 126);
+		nLen = FileReadLine(f, (BYTE*)szLine, 126);
 	}
 	
 	FileClose(f);
@@ -1153,7 +1150,7 @@ void FdcInit(void)
 		memset(&g_dtDives[i], 0, sizeof(FdcDriveType));
 	}
 
-//	FileCloseAll();
+	FileCloseAll();
 	FdcLoadIni();
 
 	for (i = 0; i < MAX_DRIVES; ++i)
@@ -1182,7 +1179,8 @@ void FdcGenerateIntr(void)
 
 	g_FDC.byNmiStatusReg = 0x7F; // inverted state of all bits low except INTRQ
 
-//	cpu.intr = 1;
+	g_byGenerate_Intr = 1;
+    gpio_put(INT_PIN, 1); // deactivate intr
 }
 
 //-----------------------------------------------------------------------------
@@ -2374,9 +2372,9 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 #endif
 
 //-----------------------------------------------------------------------------
-void fdc_write(uint16_t addr, byte byData)
+void fdc_write(word addr, byte byData)
 {
-	uint16_t wReg, wCom;
+	WORD wReg, wCom;
 #ifdef ENABLE_LOGGING
   char szBuf[128];
 #endif
@@ -2485,10 +2483,10 @@ void fdc_write(uint16_t addr, byte byData)
 }
 
 //-----------------------------------------------------------------------------
-byte fdc_read(uint16_t wAddr)
+byte fdc_read(word wAddr)
 {
-	uint16_t wReg;
-	byte     byData = 0;
+	WORD wReg;
+	BYTE byData = 0;
 #ifdef ENABLE_LOGGING
   char szBuf[128];
 #endif

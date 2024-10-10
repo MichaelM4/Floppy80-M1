@@ -1,5 +1,3 @@
-#include "pch.h"
-
 #include "defines.h"
 #include "datetime.h"
 #include "system.h"
@@ -10,8 +8,11 @@
 #include "string.h"
 
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/systick.h"
+
+#include "util.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +36,10 @@ uint64_t g_nTimeDiff;
 uint32_t g_dwRotationTime;
 uint32_t g_dwIndexTime;
 uint32_t g_dwResetTime;
+
 uint8_t  g_byMonitorReset;
+uint32_t g_dwResetCount;
+uint8_t  g_byResetFDC;
 
 uint8_t  g_byMotorWasOn;
 uint8_t  g_byFlushTraceBuffer;
@@ -47,13 +51,14 @@ uint32_t g_nRtcIntrCount;
 
 SystemType sysdef;
 
+uint64_t g_nWaitTime;
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 void InitVars(void)
 {
 	g_dwRotationTime = 200000;	// 200ms
 	g_dwIndexTime    = (g_dwRotationTime * 5) / 360;	// 5 degrees for index
 	g_dwResetTime    = 1000;	// 1ms
-	g_byMonitorReset = FALSE;
 
 	g_byMotorWasOn = 0;
 	g_byFlushTraceBuffer = 0;
@@ -62,6 +67,10 @@ void InitVars(void)
 
 	g_nRtcIntrCount = 0;
 	g_byModel1_RtcIntr = 0;
+
+	g_byMonitorReset = FALSE;
+	g_dwResetCount   = 0;
+	g_byResetFDC     = FALSE;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +515,6 @@ void UpdateCounters(void)
 	g_dwRotationTime = 200000;	// 200ms
 	g_dwIndexTime    = (g_dwRotationTime * 5) / 360;	// 5 degrees for index
 	g_dwResetTime    = 1000;	// 1ms
-	g_byMonitorReset = FALSE;
 
 	g_byMotorWasOn = 0;
 	g_byFlushTraceBuffer = 0;
@@ -519,7 +527,8 @@ void UpdateCounters(void)
 	{
 		g_nRtcIntrCount -= 25000;
 		g_byModel1_RtcIntr = 1;
-        gpio_put(INT_PIN, 1); // activate intr
+		g_byGenerate_Intr = true;
+		gpio_put(INT_PIN, 1); // activate intr
 	}
 
 	if (g_FDC.dwWaitTimeoutCount > 0)
@@ -546,11 +555,11 @@ void UpdateCounters(void)
 
 		if (g_FDC.dwRotationCount < g_dwIndexTime)
 		{
-			FdcSetFlag(eIndex);
+			g_FDC.stStatus.byIndex = 1;
 		}
 		else
 		{
-			FdcClrFlag(eIndex);
+			g_FDC.stStatus.byIndex = 0;
 		}
 	}
 	else
@@ -559,6 +568,27 @@ void UpdateCounters(void)
 		{
 			g_byMotorWasOn = 0;
 		}
+	}
+
+	if (!gpio_get(SYSRES_PIN))
+	{
+		if (g_byMonitorReset)
+		{
+			g_dwResetCount = CountUp(g_dwResetCount, nDiff);
+
+			if (g_dwResetCount >= g_dwResetTime) // ~ 1ms duration
+			{
+				g_byMonitorReset = FALSE;
+				g_byResetFDC = 1;
+			    multicore_reset_core1();
+			    system_reset();
+			}
+		}
+	}
+	else
+	{
+		g_dwResetCount   = 0;
+		g_byMonitorReset = TRUE;
 	}
 }
 

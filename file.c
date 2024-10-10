@@ -1,5 +1,3 @@
-#include "pch.h"
-
 #include "defines.h"
 #include "file.h"
 #include "system.h"

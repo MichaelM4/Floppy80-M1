@@ -352,10 +352,12 @@ void FdcSetFlag(byte flag);
 void FdcClrFlag(byte flag);
 BYTE FdcGetCommandType(BYTE byCommand);
 void FdcGenerateIntr(void);
+void FdcStartCapture(void);
 void FdcInit(void);
 void FdcReset(void);
 void FdcProcessCommand(void);
 void FdcServiceStateMachine(void);
+void FdcProcessConfigEntry(char szLabel[], char* psz);
 void FdcCloseAllFiles(void);
 
 void fdc_write(uint16_t addr, byte byData);
@@ -363,6 +365,7 @@ byte fdc_read(uint16_t wAddr);
 void fdc_write_drive_select(byte byData);
 byte fdc_read_nmi(void);
 void fdc_write_nmi(byte byData);
+void fdc_process_command_request(byte by);
 
 #ifdef __cplusplus
 }

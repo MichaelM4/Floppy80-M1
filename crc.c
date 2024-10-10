@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "defines.h"
 #include "crc.h"
 
 static const unsigned short CRC_CCITT_TABLE[256] =

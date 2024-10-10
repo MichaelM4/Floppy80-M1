@@ -8,62 +8,48 @@
 
 .wrap_target
 start:
-    nop side 0
+    nop side 0          // deactivate WAIT
 
-// wait for MREQ to go high (inactive)
-loop:
-    set y, 1        // input mask 
-    in pins, 5      // shift state of input (IN, RD, WR, OUT and MREQ) pins into isr
-    in null, 31     // set remaining isr bits to zero
+    // wait for IN, RD, WR, OUT and MREQ to go high (inactive)
+    set y, 31           // input compare for IN, RD, WR, OUT and MREQ = 1 (0x1F)
+wait_mreq:
+    in pins, 5          // shift state of 5 input pins (IN, RD, WR, OUT and MREQ) into isr
+    in null, 27         // shift IN, RD, WR, OUT and MREQ to lowest 5 bits of isr, with remaining bits zero
     mov x, isr
-    jmp x!=y loop
+    jmp x!=y wait_mreq
 
-// wait for MREQ to be low (active)
+    // push 31 into fifo to tell memory task IN, RD, WR, OUT and MREQ are all high
+    push
+
+    // wait for MREQ to be low (active)
     wait 0 pin 4
 
-// activate wait control; and
-// wait for RD or WR to go low
+    nop side 1          // activate WAIT
+    set y, 3            // "set y, 3" - sets y to compare value for RD and WR
+
 wait_rdwr:
-    set y, 3 side 1
-wait_rdwr_low:
-    in pins, 3     // shift state of input pins into isr
-    in null, 30    // rotate RD to bit 0 and WR to bit 1
+    // wait for RD or WR to go low
+    in pins, 3          // shift state of 3 input pins (IN, RD, WR) into isr
+    in null, 30         // rotate RD to bit 0, WR to bit 1 (shift out IN) and remain bits zero/null
     mov x, isr
-    jmp x!=y check_rdwr
-    jmp wait_rdwr_low
+    jmp x!=y rdwr_low
+    jmp wait_rdwr
 
-check_rdwr:
-    push            // signal RD/WR request to memory task
+rdwr_low:
+    // push 1 for RD or 2 for WR into fifo to tell memory task RD or WR are low
+    push
 
-// if wr then don't delay
-    set y, 2
-    jmp x!=y release
-
-    set x, 7
-rddelay:
-    jmp x-- rddelay [6]
-
-// realease wait
-release:
-    nop side 0
-
-// wait for RD and WR to be high
-    set y, 3
-wait_rdwr_high:
-    in pins, 3     // shift state of RD/WR pins into isr
-    in null, 30    // rotate RD to bit 0 and WR to bit 1
-    mov x, isr
-    jmp x!=y wait_rdwr_high
-
-    push            // signal RD/WR wait is over
+stall:
+    jmp stall
 
 .wrap
 
 % c-sdk {
 
 void fdc_program_init(PIO pio, uint sm, uint offset, pio_sm_config* pc) {
-    uint in_pin = 10;      // IN
-    uint sideset_pin = 1;  // WAIT
+    uint in_pin = 10;      // GPIO number for first input of an "in" operation
+                           // "in pins" for the five inputs (IN, RD, WR, OUT and MREQ)
+    uint sideset_pin = 1;  // GPIO number that is used in a side set operation (the WAIT signal)
 
     *pc = fdc_program_get_default_config(offset);
 

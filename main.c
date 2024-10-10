@@ -1,9 +1,8 @@
-#include "pch.h"
-
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/gpio.h"
 
 #include "hardware/pio.h"
 #include "hardware/irq.h"
@@ -21,8 +20,11 @@
 	void RecordBusHistory(DWORD dwBus, BYTE byData);
 #endif
 
+#pragma GCC optimize ("O0")
+
 byte by_memory[0x8000];
 byte g_byModel1_RtcIntr;
+byte g_byGenerate_Intr;
 
 ///////////////////////////////////////////////////////////////////////////////
 // API documentions is located at
@@ -103,7 +105,7 @@ void InitGPIO(void)
   gpio_set_dir(WAIT_PIN, GPIO_OUT);
   gpio_set_slew_rate(WAIT_PIN, GPIO_SLEW_RATE_FAST);
   gpio_set_drive_strength(WAIT_PIN, GPIO_DRIVE_STRENGTH_12MA);
-  gpio_put(WAIT_PIN, 1); // activate wait
+  gpio_put(WAIT_PIN, 0); // deactivate wait
 
   // CLK_SCLK - initailized by the SD-Card library
   // CMD_MOSI
@@ -180,14 +182,52 @@ void InitGPIO(void)
   gpio_set_dir(CD_PIN, GPIO_IN);
 }
 
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(fdc_isr)(void)
+{
+    irq_clear(PIO0_IRQ_0);
+    pio_interrupt_clear(g_pio, 0);
+}
+
+//-----------------------------------------------------------------------------
+
+void InitPIO(void)
+{
+  g_pio    = pio0;
+  g_sm     = pio_claim_unused_sm(g_pio, true);
+  g_offset = pio_add_program(g_pio, &fdc_program);
+
+  fdc_program_init(g_pio, g_sm, g_offset, &g_pio_config);
+
+  // Start running the PIO program in the state machine
+  pio_sm_set_enabled(g_pio, g_sm, true);
+
+  irq_set_exclusive_handler(PIO0_IRQ_0, fdc_isr);
+  irq_set_enabled(PIO0_IRQ_0, true);
+  pio_set_irq0_source_enabled(g_pio, pis_interrupt0, true);
+}
+
+void __not_in_flash_func(fast_gpio_set_mask)(uint32_t mask)
+{
+    sio_hw->gpio_set = mask;
+}
+
+void __not_in_flash_func(fast_gpio_clr_mask)(uint32_t mask)
+{
+    sio_hw->gpio_clr = mask;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // restart pio code to release WAIT state
-void __not_in_flash_func(ReleaseWait)(void)
+void __not_in_flash_func(ResetPioStateMachine)(void)
 {
-	// push pin direction mask into tx fifo (this way the pio state machine does not need to generate it)
-//	pio_sm_put(g_pio, g_sm, ~GPIO_IN_MASK >> WAIT_PIN);
+  // empty fifo
+  pio_sm_clear_fifos(g_pio, g_sm);
 
+  /////////////////////////////////////////////////////////////////////////////////////////////
 	// restart the pio state machine at its first instruction (the address for which is g_offset)
+  /////////////////////////////////////////////////////////////////////////////////////////////
+
 	// set x, g_offset
 	//   [3 bit opcode]      = 111
 	//   [5 bits = delay]    = 00000
@@ -206,63 +246,41 @@ void __not_in_flash_func(ReleaseWait)(void)
 	//   -------------------------------
 	//   1010  0000 1010 0001
 	pio_sm_exec(g_pio, g_sm, 0xA0A1);
-}
 
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_isr)(void)
-{
-    irq_clear(PIO0_IRQ_0);
-    pio_interrupt_clear(g_pio, 0);
-}
+  // wait for first push on the state machine, lets us know it is running
+//  while (pio_sm_is_rx_fifo_empty(g_pio, g_sm));
 
-//-----------------------------------------------------------------------------
-
-void InitPIO(void)
-{
-  g_pio    = pio0;
-  g_sm     = pio_claim_unused_sm(g_pio, true);
-  g_offset = pio_add_program(g_pio, &fdc_program);
-
-  fdc_program_init(g_pio, g_sm, g_offset, &g_pio_config);
-
-//	pio_sm_put(g_pio, g_sm, ~GPIO_IN_MASK);
-
-  // Start running the PIO program in the state machine
-  pio_sm_set_enabled(g_pio, g_sm, true);
-
-  irq_set_exclusive_handler(PIO0_IRQ_0, fdc_isr);
-  irq_set_enabled(PIO0_IRQ_0, true);
-  pio_set_irq0_source_enabled(g_pio, pis_interrupt0, true);
-
-	// push pin direction mask into tx fifo
-//	pio_sm_put(g_pio, g_sm, ~GPIO_IN_MASK >> WAIT_PIN);
-}
-
-void __not_in_flash_func(fast_gpio_set_mask)(uint32_t mask)
-{
-    sio_hw->gpio_set = mask;
-}
-
-void __not_in_flash_func(fast_gpio_clr_mask)(uint32_t mask)
-{
-    sio_hw->gpio_clr = mask;
+  // remove the first push of the PIO SM
+  pio_sm_get_blocking(g_pio, g_sm);
 }
 
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(service_memory)(void)
 {
-  uint32_t mask = (1u << (PIO_FSTAT_RXEMPTY_LSB + g_sm));
+//  uint32_t mask = (1u << (PIO_FSTAT_RXEMPTY_LSB + g_sm));
   byte rdwr;
   union {
     byte b[2];
     word w;
   } addr;
 
+  ResetPioStateMachine();
+  g_byGenerate_Intr = false;
+
   while (1)
   {
-    while (g_pio->fstat & mask);   // wait for RD/WR request
-    rdwr = g_pio->rxf[g_sm];       // RD/WR state is in bits 0 (RD) and 1 (WR) of FIFO
+    rdwr = 31;
 
+    // rdwr = g_pio->rxf[g_sm];
+    //   1 => WR
+    //   2 => RD
+    //   31 => IN, RD, WR, OUT and MREQ are all high
+    while (rdwr == 31) // wait while IN, RD, WR, OUT and MREQ are all high
+    {
+      while (pio_sm_is_rx_fifo_empty(g_pio, g_sm));
+      rdwr = pio_sm_get(g_pio, g_sm);
+    }
+  
     // read low address byte
     sio_hw->gpio_clr = 1 << ADDRL_OE_PIN;
     asm(
@@ -283,9 +301,9 @@ void __not_in_flash_func(service_memory)(void)
     addr.b[1] = sio_hw->gpio_in >> D0_PIN;
     sio_hw->gpio_set = 1 << ADDRH_OE_PIN;
 
-    if (addr.w < 0x8000) // low memory request
+    if (rdwr == 2) // RD
     {
-      if (rdwr & 2) // RD
+      if (addr.w < 0x8000) // RD from lower 32k memory
       {
         switch (addr.w)
         {
@@ -306,7 +324,11 @@ void __not_in_flash_func(service_memory)(void)
               g_byModel1_RtcIntr = 0;
             }
 
-            gpio_put(INT_PIN, 0); // deactivate intr
+            if (g_byGenerate_Intr)
+            {
+              gpio_put(INT_PIN, 0); // deactivate intr
+              g_byGenerate_Intr = false;
+            }
 
             sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
             sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
@@ -317,9 +339,7 @@ void __not_in_flash_func(service_memory)(void)
 
             sio_hw->gpio_togl = 1 << LED_PIN;
 
-            // wait for RD to go high
-            while (g_pio->fstat & mask);   // wait for RD/WR release
-            rdwr = g_pio->rxf[g_sm];
+            ResetPioStateMachine();
 
             // turn bus around
             sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
@@ -342,9 +362,7 @@ void __not_in_flash_func(service_memory)(void)
 
             sio_hw->gpio_togl = 1 << LED_PIN;
 
-            // wait for RD to go high
-            while (g_pio->fstat & mask);   // wait for RD/WR release
-            rdwr = g_pio->rxf[g_sm];
+            ResetPioStateMachine();
 
             // turn bus around
             sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
@@ -353,13 +371,32 @@ void __not_in_flash_func(service_memory)(void)
             break;
 
           default:
-            // wait for RD/WR to go high
-            while (g_pio->fstat & mask);    // wait for RD/WR release
-            rdwr = g_pio->rxf[g_sm];
+            ResetPioStateMachine();
             break;
         }
       }
-      else // WR
+      else // RD from upper 32k memory
+      {
+        sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+        sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
+        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+
+        // put byte on data bus
+        sio_hw->gpio_togl = (sio_hw->gpio_out ^ (by_memory[addr.w-0x8000] << D0_PIN)) & (0xFF << D0_PIN);
+
+        sio_hw->gpio_togl = 1 << LED_PIN;
+
+        ResetPioStateMachine();
+
+        // turn bus around
+        sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
+        sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
+        sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+      }
+    }
+    else if (rdwr == 1) // WR
+    {
+      if (addr.w < 0x8000) // WR to lower 32k memory
       {
         switch (addr.w)
         {
@@ -378,6 +415,8 @@ void __not_in_flash_func(service_memory)(void)
             sio_hw->gpio_set = 1 << DATAB_OE_PIN;
 
             fdc_write_drive_select(rdwr);
+
+            ResetPioStateMachine();
             break;
 
           case 0x37EC: // Cmd/Status register
@@ -395,51 +434,33 @@ void __not_in_flash_func(service_memory)(void)
             sio_hw->gpio_set = 1 << DATAB_OE_PIN;
 
             fdc_write(addr.w, rdwr);
+
+            ResetPioStateMachine();
             break;
  
           default:
-            // wait for RD/WR to go high
-            while (g_pio->fstat & mask);    // wait for RD/WR release
-            rdwr = g_pio->rxf[g_sm];
+            ResetPioStateMachine();
             break;
         }
       }
+      else // WR to upper 32k memory
+      {
+        // get data byte
+        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+        asm(
+          "nop\n\t"
+          "nop\n\t"
+          "nop\n\t"
+        );
+        by_memory[addr.w-0x8000] = sio_hw->gpio_in >> D0_PIN;
+        sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+
+        ResetPioStateMachine();
+      }
     }
-    else if (rdwr & 2) // RD upper memory
+    else
     {
-      sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
-      sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
-      sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
-
-      // put byte on data bus
-      sio_hw->gpio_togl = (sio_hw->gpio_out ^ (by_memory[addr.w-0x8000] << D0_PIN)) & (0xFF << D0_PIN);
-
-      sio_hw->gpio_togl = 1 << LED_PIN;
-
-      // wait for RD to go high
-      while (g_pio->fstat & mask);   // wait for RD/WR release
-      rdwr = g_pio->rxf[g_sm];
-
-      // turn bus around
-      sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
-      sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-      sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
-    }
-    else // WR upper memory
-    {
-      // get data byte
-      sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
-      asm(
-        "nop\n\t"
-        "nop\n\t"
-        "nop\n\t"
-      );
-      by_memory[addr.w-0x8000] = sio_hw->gpio_in >> D0_PIN;
-      sio_hw->gpio_set = 1 << DATAB_OE_PIN;
-
-      // wait for WR to go high
-      while (g_pio->fstat & mask);    // wait for RD/WR release
-      rdwr = g_pio->rxf[g_sm];
+      ResetPioStateMachine();
     }
   }
 }
@@ -454,14 +475,15 @@ int main()
 
   InitGPIO();
   InitVars();
-  InitPIO();
   SDHC_Init();
   FileSystemInit();
   FdcInit();
 
-  multicore_launch_core1(service_memory);
+  // wait for reset to be released
+  while (!gpio_get(SYSRES_PIN));
 
-  gpio_put(WAIT_PIN, 0); // release wait
+  InitPIO();
+  multicore_launch_core1(service_memory);
 
   while (true)
   {

@@ -24,7 +24,6 @@ typedef struct {
 
 // variables
 
-extern bool g_bLogOpen;
 extern SystemType sysdef;
 
 // function definitions
