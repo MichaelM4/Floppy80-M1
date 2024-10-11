@@ -2,7 +2,7 @@
 #ifndef _H_DEFINES_
 #define _H_DEFINES_
 
-#pragma GCC optimize ("O0")
+// #pragma GCC optimize ("O0")
 
 #include <stdio.h>
 

@@ -224,7 +224,8 @@ void __not_in_flash_func(ReleaseWait)(void)
 	//   1010  0000 1010 0001
 	pio_sm_exec(g_pio, g_sm, 0xA0A1);
 
-  // remove the first push of the PIO SM
+  // remove the first push of the PIO SM after IN, RD, WR, OUT and MREQ are all high
+  // indicating the end of a memory access cycle
   pio_sm_get_blocking(g_pio, g_sm);
 }
 
@@ -232,7 +233,7 @@ void __not_in_flash_func(ReleaseWait)(void)
 void __not_in_flash_func(service_memory)(void)
 {
   byte rdwr;
-  int  nHoldCount;
+  byte byHoldCount;
   union {
     byte b[2];
     word w;
@@ -246,22 +247,24 @@ void __not_in_flash_func(service_memory)(void)
     //   1 => WR
     //   2 => RD
     //   31 => IN, RD, WR, OUT and MREQ are all high
-    while (rdwr == 31) // wait while IN, RD, WR, OUT and MREQ are all high
+    do
     {
-      nHoldCount = 0;
+      byHoldCount = 0;
 
-      while (pio_sm_is_rx_fifo_empty(g_pio, g_sm))
+      do
       {
-        ++nHoldCount;
+        ++byHoldCount;
 
-        if (nHoldCount > 500) // then wait might be stuck on
+        if (byHoldCount > 250) // then wait might be stuck on
         {
-          pio_sm_exec(g_pio, g_sm, 0xB042); // nop side 0
+          // pio_sm_exec(g_pio, g_sm, 0xB042); // nop side 0
+          g_pio->sm[g_sm].instr = 0xB042; // nop side 0
         }
-      }
+      } while (pio_sm_is_rx_fifo_empty(g_pio, g_sm));
 
-      rdwr = pio_sm_get(g_pio, g_sm);
-    }
+      // rdwr = pio_sm_get(g_pio, g_sm);
+      rdwr = g_pio->rxf[g_sm];
+    } while (rdwr == 31); // wait while IN, RD, WR, OUT and MREQ are all high
   
     // read low address byte
     sio_hw->gpio_clr = 1 << ADDRL_OE_PIN;
@@ -318,8 +321,6 @@ void __not_in_flash_func(service_memory)(void)
             // put byte on data bus
             sio_hw->gpio_togl = (sio_hw->gpio_out ^ (rdwr << D0_PIN)) & (0xFF << D0_PIN);
 
-            sio_hw->gpio_togl = 1 << LED_PIN;
-
             ReleaseWait();
 
             // turn bus around
@@ -346,8 +347,6 @@ void __not_in_flash_func(service_memory)(void)
             // put byte on data bus
             sio_hw->gpio_togl = (sio_hw->gpio_out ^ (rdwr << D0_PIN)) & (0xFF << D0_PIN);
 
-            sio_hw->gpio_togl = 1 << LED_PIN;
-
             ReleaseWait();
 
             // turn bus around
@@ -369,8 +368,6 @@ void __not_in_flash_func(service_memory)(void)
 
         // put byte on data bus
         sio_hw->gpio_togl = (sio_hw->gpio_out ^ (by_memory[addr.w-0x8000] << D0_PIN)) & (0xFF << D0_PIN);
-
-        sio_hw->gpio_togl = 1 << LED_PIN;
 
         ReleaseWait();
 
@@ -453,7 +450,7 @@ void __not_in_flash_func(service_memory)(void)
 
 ///////////////////////////////////////////////////////////////////////////////
 int main()
-{
+ {
   stdio_init_all();
 
   systick_hw->csr = 0x5;
@@ -475,10 +472,5 @@ int main()
   {
     UpdateCounters();
     FdcServiceStateMachine();
-
-    if (!g_byFdcIntrActive && !g_byRtcIntrActive)
-    {
-      gpio_put(INT_PIN, 0); // deactivate intr
-    }
   }   
 }

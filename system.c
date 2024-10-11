@@ -12,6 +12,7 @@
 #include "hardware/clocks.h"
 #include "hardware/structs/systick.h"
 
+#include "sd_core.h"
 #include "util.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -541,6 +542,7 @@ void UpdateCounters(void)
 
 	if (g_FDC.dwMotorOnTimer != 0)
 	{
+        gpio_put(LED_PIN, 0);
 		g_byMotorWasOn = 1;
 
 		g_FDC.dwMotorOnTimer  = CountDown(g_FDC.dwMotorOnTimer, nDiff);
@@ -563,10 +565,24 @@ void UpdateCounters(void)
 	}
 	else
 	{
+        gpio_put(LED_PIN, 1);
+
 		if (g_byMotorWasOn)
 		{
 			g_byMotorWasOn = 0;
 		}
+	}
+
+	if (get_cd())		// 0 => card removed; 1 => card inserted;
+	{
+		if (g_dwSdCardPresenceCount < g_dwSdCardMaxPresenceCount)
+		{
+			g_dwSdCardPresenceCount = CountUp(g_dwSdCardPresenceCount, nDiff);
+		}
+	}
+	else
+	{
+		g_dwSdCardPresenceCount = 0;
 	}
 
 	if (!gpio_get(SYSRES_PIN))

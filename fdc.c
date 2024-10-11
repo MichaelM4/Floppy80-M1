@@ -11,10 +11,10 @@
 #include "system.h"
 #include "crc.h"
 #include "fdc.h"
+#include "sd_core.h"
 
-#define ENABLE_LOGGING 1
-
-byte g_bLogOpen = 1;
+//#define ENABLE_LOGGING 1
+byte g_bLogOpen = 0;
 
 // extern CpuType cpu;
 // extern int g_nModel;
@@ -2249,6 +2249,8 @@ void FdcServiceSendData(void)
 //-----------------------------------------------------------------------------
 void FdcServiceStateMachine(void)
 {
+	TestSdCardInsertion();
+
 	// check if we have a command to process
 	if (g_FDC.byCommandReceived != 0)
 	{
@@ -2618,7 +2620,7 @@ void fdc_write_drive_select(byte byData)
 
 	int nDrive = FdcGetDriveIndex(byData);
 
-	if (g_dtDives[nDrive].f != NULL)
+//	if (g_dtDives[nDrive].f != NULL)
 	{
 		g_FDC.dwMotorOnTimer = 2000000;
 	}

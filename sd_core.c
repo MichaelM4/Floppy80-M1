@@ -333,8 +333,8 @@ void SDHC_Init(void)
 	sd_byPreviousCdState       = sd_byCurrentCdState;
 	sd_byPreviousWpState       = sd_byCurrentWpState;
 	sd_wCardInitTries          = 0;
-	g_dwSdCardMaxPresenceCount = 10000; //g_dwTimerFrequency / 100;
+	g_dwSdCardMaxPresenceCount = 10000;
+	g_dwSdCardPresenceCount    = 0;
 	
 	IdentifySdCard();
-	// FindFiles("*.*");
 }
