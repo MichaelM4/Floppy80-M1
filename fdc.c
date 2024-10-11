@@ -16,10 +16,6 @@
 //#define ENABLE_LOGGING 1
 byte g_bLogOpen = 0;
 
-// extern CpuType cpu;
-// extern int g_nModel;
-// extern byte g_byMemory[0x10000];
-
 ////////////////////////////////////////////////////////////////////////////////////
 /*
 
@@ -1168,11 +1164,9 @@ void FdcInit(void)
 	}
 
 	g_FDC.byCommandReceived = 0;
-	g_FDC.byCommandReg = 255;
-	g_FDC.byCurCommand = 255;
-
-//	g_FDC.bySdCardPresent = sd_byCardInialized;
-	g_FDC.byDriveSel = 0x01;
+	g_FDC.byCommandReg  = 255;
+	g_FDC.byCurCommand  = 255;
+	g_FDC.byDriveSel    = 0x01;
 	g_FDC.byCommandType = 1;
 
 	g_nMaxSeekTime = 0;
@@ -2619,11 +2613,7 @@ void fdc_write_drive_select(byte byData)
 	}
 
 	int nDrive = FdcGetDriveIndex(byData);
-
-//	if (g_dtDives[nDrive].f != NULL)
-	{
-		g_FDC.dwMotorOnTimer = 2000000;
-	}
+	g_FDC.dwMotorOnTimer = 2000000;
 }
 
 //-----------------------------------------------------------------------------

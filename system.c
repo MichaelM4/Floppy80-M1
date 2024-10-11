@@ -739,5 +739,4 @@ void LoadIniFile(char* pszFileName)
 	
 	FileClose(f);
   	InitVars();
-//	InitSystem();
 }

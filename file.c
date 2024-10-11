@@ -12,7 +12,6 @@ file* FileOpen(char* pszFileName, BYTE byMode)
 {
 	FRESULT fr = FR_NO_FILE;
 	UINT    nMode;
-//	char    szTempPath[64];
 	int     i;
 
 #ifndef MFC
@@ -34,11 +33,6 @@ file* FileOpen(char* pszFileName, BYTE byMode)
 	{
 		return NULL;
 	}
-
-	// if (strlen(pszFileName) > (sizeof(szTempPath)-3))
-	// {
-	// 	return NULL;
-	// }
 
 #ifdef MFC
 	CString str;

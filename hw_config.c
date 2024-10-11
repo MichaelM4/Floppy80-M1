@@ -43,14 +43,13 @@ This example assumes the following hardware configuration:
 
 |       | SPI0  | GPIO  | Pin   | SPI       | MicroSD   | Description            | 
 | ----- | ----  | ----- | ---   | --------  | --------- | ---------------------- |
-| MISO  | RX    | 16    | 21    | DO        | DO        | Master In, Slave Out   |
-| MOSI  | TX    | 19    | 25    | DI        | DI        | Master Out, Slave In   |
-| SCK   | SCK   | 18    | 24    | SCLK      | CLK       | SPI clock              |
-| CS0   | CSn   | 17    | 22    | SS or CS  | CS        | Slave (or Chip) Select |
-| DET   |       | 22    | 29    |           | CD        | Card Detect            |
+| MISO  | RX    | 4     | 6     | DO        | DO        | Master In, Slave Out   |
+| MOSI  | TX    | 3     | 5     | DI        | DI        | Master Out, Slave In   |
+| SCK   | SCK   | 2     | 4     | SCLK      | CLK       | SPI clock              |
+| CS0   | CSn   | 5     | 7     | SS or CS  | CS        | Slave (or Chip) Select |
+| DET   |       | 28    | 34    |           | CD        | Card Detect            |
 | GND   |       |       | 18,23 |           | GND       | Ground                 |
 | 3v3   |       |       | 36    |           | 3v3       | 3.3 volt power         |
-
 */
 
 // Hardware Configuration of SPI "objects"

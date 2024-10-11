@@ -27,10 +27,6 @@ WORD    sd_wCardInitTries;
 DWORD   g_dwSdCardPresenceCount;
 DWORD   g_dwSdCardMaxPresenceCount;
 
-//FATFS    g_fs;				// mounted file system
-//DIR      g_dj;				// Directory object
-//FILINFO  g_fno;				// File information
-
 ////////////////////////////////////////////////////////////////////////////////////
 static FATFS *sd_get_fs_by_name(const char *name)
 {
@@ -240,88 +236,6 @@ void TestSdCardInsertion(void)
 	sd_byPreviousCdState = sd_byCurrentCdState;
 	sd_byPreviousWpState = sd_byCurrentWpState;
 }
-
-// //-----------------------------------------------------------------------------
-// void FindFiles(const char* pszFilter)
-// {
-//     FRESULT fr;  // Return value
-// 	int ret;
-	
-// 	g_FDC.byCommandType = 2;
-
-// 	g_nFindIndex = 0;
-// 	g_nFindCount = 0;
-
-// 	// strcpy((char*)(g_FDC.byTransferBuffer+1), "too soon");
-// 	// g_FDC.byTransferBuffer[0] = strlen((char*)(g_FDC.byTransferBuffer+1)) + 2;
-
-//     memset(&g_dj, 0, sizeof(g_dj));
-//     memset(&g_fno, 0, sizeof(g_fno));
-// 	memset(g_fiFindResults, 0, sizeof(g_fiFindResults));
-
-// 	strcpy(g_szFindFilter, pszFilter);
-
-//     fr = f_findfirst(&g_dj, &g_fno, "0:", "*");
-
-//     if (FR_OK != fr)
-// 	{
-// 		strcpy((char*)(g_FDC.byTransferBuffer+1), "No matching file found.");
-// 		// g_FDC.byTransferBuffer[0] = strlen((char*)(g_FDC.byTransferBuffer+1));
-// 		// g_FDC.stStatus.byDataRequest = 0;
-// 		// g_FDC.stStatus.byBusy        = 0;
-//         return;
-//     }
-
-// 	while ((fr == FR_OK) && (g_fno.fname[0] != 0) && (g_nFindCount < FIND_MAX_SIZE))
-// 	{
-// 		if ((g_fno.fattrib & AM_DIR) || (g_fno.fattrib & AM_SYS))
-// 		{
-// 			// pcAttrib = pcDirectory;
-// 		}
-// 		else
-// 		{
-// 			if ((g_szFindFilter[0] == '*') || (stristr(g_fno.fname, g_szFindFilter) != NULL))
-// 			{
-// 				memcpy(&g_fiFindResults[g_nFindCount], &g_fno, sizeof(FILINFO));
-// 				++g_nFindCount;
-// 			}
-// 		}
-
-// 		if (g_fno.fname[0] != 0)
-// 		{
-// 			fr = f_findnext(&g_dj, &g_fno); /* Search for next item */
-// 		}
-// 	}
-
-// 	f_closedir(&g_dj);
-
-// 	if (g_nFindCount > 0)
-// 	{
-// //		qsort(g_fiFindResults, g_nFindCount, sizeof(FILINFO), FdcFileListCmp);
-
-// 		// sprintf((char*)(g_FDC.byTransferBuffer+1), "%2d/%02d/%d %7d %s",
-// 		// 		((g_fiFindResults[g_nFindIndex].fdate >> 5) & 0xF) + 1,
-// 		// 		(g_fiFindResults[g_nFindIndex].fdate & 0xF) + 1,
-// 		// 		(g_fiFindResults[g_nFindIndex].fdate >> 9) + 1980,
-// 		// 		g_fiFindResults[g_nFindIndex].fsize,
-// 		// 		(char*)g_fiFindResults[g_nFindIndex].fname);
-
-// 		// ++g_nFindIndex;
-// 	}
-
-// 	// g_FDC.nTransferSize       = strlen((char*)(g_FDC.byTransferBuffer+1)) + 2;
-// 	// g_FDC.byTransferBuffer[0] = g_FDC.nTransferSize;
-// 	// g_FDC.nTrasferIndex       = 0;
-	
-// 	// g_FDC.nReadStatusCount       = 0;
-// 	// g_FDC.dwStateCounter         = 100000;
-// 	// g_FDC.nProcessFunction       = psSendData;
-// 	// g_FDC.nServiceState          = 0;
-// 	// g_FDC.stStatus.byDataRequest = 1;
-// 	// g_FDC.stStatus.byBusy        = 0;
-
-// 	// Actual data transfer in handle in the FdcServiceSendData() function.
-// }
 
 ////////////////////////////////////////////////////////////////////////////////////
 void SDHC_Init(void)

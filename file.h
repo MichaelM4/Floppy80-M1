@@ -10,14 +10,14 @@ extern "C" {
 #endif
 
 #ifndef FA_READ
-  #define FA_READ  0x01
-  #define FA_WRITE 0x02
+    #define FA_READ  0x01
+    #define FA_WRITE 0x02
 #endif
 
 #define MAX_FILES 6
 
 #ifdef MFC
-  #define FIL CFile
+    #define FIL CFile
 #endif
 
 typedef struct {

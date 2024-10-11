@@ -54,8 +54,8 @@ char* stristr(char* psz, char* pszFind);
 void  AddTrailingBackslash(char szFilePath[], int nMaxLen);
 
 #ifndef MFC
-  int   stricmp(char* psz1, char* psz2);
-  void  strcat_s(char* pszDst, int nDstSize, char* pszSrc);
+    int   stricmp(char* psz1, char* psz2);
+    void  strcat_s(char* pszDst, int nDstSize, char* pszSrc);
 #endif
 
 #ifdef MFC
