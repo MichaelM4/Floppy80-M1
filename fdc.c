@@ -14,7 +14,6 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
-byte g_bLogOpen = 1;
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -2347,7 +2346,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 {
 	WORD wReg, wCom;
 #ifdef ENABLE_LOGGING
-  char szBuf[128];
+    char szBuf[128];
 #endif
 	wReg = addr & 0x03;
 
@@ -2374,10 +2373,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
             }
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-				GetCommandText(szBuf, sizeof(szBuf), byData);
-			}
+			GetCommandText(szBuf, sizeof(szBuf), byData);
 #endif
 
 			break;
@@ -2386,10 +2382,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			g_FDC.byTrack = byData;
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  sprintf(szBuf, "    FDC WRITE TRACK %02X\r\n", byData);
-			}
+		    sprintf(szBuf, "    FDC WRITE TRACK %02X\r\n", byData);
 #endif
 
 			break;
@@ -2398,10 +2391,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			g_FDC.bySector = byData;
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  sprintf(szBuf, "    FDC WRITE SECTOR %02X\r\n", byData);
-			}
+		    sprintf(szBuf, "    FDC WRITE SECTOR %02X\r\n", byData);
 #endif
 
 			break;
@@ -2423,20 +2413,14 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			}
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  sprintf(szBuf, "    FDC WRITE DATA %02X\r\n", byData);
-			}
+		    sprintf(szBuf, "    FDC WRITE DATA %02X\r\n", byData);
 #endif
 
 			break;
 	}
 
 #ifdef ENABLE_LOGGING
-	if (g_bLogOpen)
-	{
-		puts(szBuf);
-	}
+	puts(szBuf);
 #endif
 }
 
@@ -2446,7 +2430,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 	WORD wReg;
 	BYTE byData = 0;
 #ifdef ENABLE_LOGGING
-  char szBuf[128];
+    char szBuf[128];
 #endif
 
 	wReg = wAddr & 0x03;
@@ -2457,10 +2441,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			byData = g_FDC.byStatus;
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-				printf("    FDC READ STATUS %02X\r\n", byData);
-			}
+			printf("    FDC READ STATUS %02X\r\n", byData);
 #endif
 
 			++g_FDC.nReadStatusCount;
@@ -2477,22 +2458,15 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			byData = g_FDC.byTrack;
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  printf("    FDC READ TRACK %02X\r\n", byData);
-			}
+    		printf("    FDC READ TRACK %02X\r\n", byData);
 #endif
-
 			break;
 
 		case 2:
 			byData = g_FDC.bySector;
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  printf("    FDC READ SECTOR %02X\r\n", byData);
-			}
+			printf("    FDC READ SECTOR %02X\r\n", byData);
 #endif
 
 			break;
@@ -2525,10 +2499,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			}
 
 #ifdef ENABLE_LOGGING
-			if (g_bLogOpen)
-			{
-			  	printf("    FDC READ DATA %02X\r\n", byData);
-			}
+		  	printf("    FDC READ DATA %02X\r\n", byData);
 #endif
 
 			break;
@@ -2549,10 +2520,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 {
 #ifdef ENABLE_LOGGING
-	if (g_bLogOpen)
-	{
-	  printf("    FDC  WR DRVSEL %02X\r\n", byData);
-	}
+    printf("    FDC  WR DRVSEL %02X\r\n", byData);
 #endif
 
 	g_FDC.byDriveSel = byData;
