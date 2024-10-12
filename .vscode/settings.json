@@ -74,6 +74,7 @@
         "tuple": "c",
         "typeinfo": "c",
         "utility": "c",
-        "fdc.h": "c"
+        "fdc.h": "c",
+        "string.h": "c"
     }
 }

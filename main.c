@@ -15,6 +15,7 @@
 #include "sd_core.h"
 #include "fdc.h"
 #include "system.h"
+#include "video.h"
 
 #if (ENABLE_TRACE_LOG == 1)
 	void RecordBusHistory(DWORD dwBus, BYTE byData);
@@ -377,6 +378,22 @@ void __not_in_flash_func(service_memory)(void)
         }
         else if (rdwr == 1) // WR
         {
+            if ((addr.w >= 0x3C00) && (addr.w <= 0x3FFF))
+            {
+                byte ch;
+
+                // get data byte
+                sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                asm(
+                "nop\n\t"
+                "nop\n\t"
+                "nop\n\t"
+                );
+                ch = sio_hw->gpio_in >> D0_PIN;
+                sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+
+                VideoWrite(addr.w, ch);
+            }
             if (addr.w < 0x8000) // WR to lower 32k memory
             {
                 switch (addr.w)
@@ -459,6 +476,7 @@ int main()
     SDHC_Init();
     FileSystemInit();
     FdcInit();
+    InitVideo();
 
     // wait for reset to be released
     while (!gpio_get(SYSRES_PIN));
@@ -470,5 +488,6 @@ int main()
     {
         UpdateCounters();
         FdcServiceStateMachine();
+        ServiceVideo();
     }   
 }

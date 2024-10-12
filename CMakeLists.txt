@@ -44,6 +44,7 @@ add_executable(Floppy80
     system.c
     crc.c
     file.c
+    video.c
 )
 
 pico_generate_pio_header(${PROJECT_NAME}
