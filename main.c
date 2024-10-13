@@ -469,9 +469,6 @@ int main()
 {
     stdio_init_all();
 
-    systick_hw->csr = 0x5;
-    systick_hw->rvr = 0x00FFFFFF;
-
     InitGPIO();
     InitVars();
     SDHC_Init();
