@@ -2393,6 +2393,10 @@ void FdcProcessRequest(void)
             FdcProcessStatusRequest();
             break;
 
+        case 2: // find first file
+            FdcProcessFindFirst("*");
+            break;
+
         case 3: // find next file
             FdcProcessFindNext();
             break;

@@ -1,0 +1,1311 @@
+;
+; fdc.asm -- Floppy-80 Utility
+;
+
+@key	equ	1
+@dsp	equ	2
+
+; Model 4 SVCs
+@fspec	equ 78
+@init	equ 58
+@open	equ 59
+@close	equ 60
+@read	equ 67
+@write	equ 75
+@exit	equ 22
+@put	equ 4
+
+LLEN	 equ	80		; file buffer line length
+NLINES	 equ	10		; number of lines in file/text buffer
+PARMSIZE equ	64
+
+; Floppy-80 command codes
+GETSTAUS_CMD  equ	1
+FINDALL_CMD   equ	2
+FINDNEXT_CMD  equ	3
+MOUNT_CMD     equ	4
+OPENFILE_CMD  equ	5
+READFILE_CMD  equ	6
+WRITEFILE_CMD equ	7
+CLOSEFILE_CMD equ	8
+SETTIME_CMD   equ	9
+GETTIME_CMD   equ	10
+
+FINDINI_CMD   equ	80h
+FINDDMK_CMD   equ	81h
+FINDHFE_CMD   equ	82h
+
+REQUEST_ADDR  equ   3000h
+RESPONSE_ADDR equ   3200h
+
+; to detect equality of a value in A
+;	cp	<whatever>
+;	jr	c,testFailed   ; A was less than <whatever>.
+;	jr	z,testFailed   ; A was exactly equal to <whatever>.
+
+	org	$5200
+
+start:
+	; detect model (0=Model 3; 1=Model 4;)
+	ld	a,(000ah)	; Model 4?
+	cp	40h
+	jr	z,not4
+
+	ld	a,1
+	ld	(model),a
+	jp	gotid
+
+not4:
+	ld	a,0
+	ld	(model),a
+
+gotid:
+	call getparms
+
+	ld	a,0		; set opcode = 0 just in case
+	ld	(opcode),a
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for STA command line parmameter
+	ld	hl,parm1
+	ld	de,STAstr
+	call	striequ
+	jr	nz,gotid1
+	jp	getsta
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for INI command line parmameter
+gotid1:
+	ld	hl,parm1
+	ld	de,INIstr
+	call	striequ
+	jr	nz,gotid2
+	ld	a,FINDINI_CMD	; find .ini files
+	ld	(opcode),a
+	jp	getlist
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for DMK command line parmameter
+gotid2:
+	ld	hl,parm1
+	ld	de,DMKstr
+	call	striequ
+	jr	nz,gotid3
+	ld	a,FINDDMK_CMD	; find .dmk files
+	ld	(opcode),a
+	jp	getlist
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for HFE command line parmameter
+gotid3:
+	ld	hl,parm1
+	ld	de,HFEstr
+	call	striequ
+	jr	nz,gotid4
+	ld	a,FINDHFE_CMD	; find .hfe files
+	ld	(opcode),a
+	jp	getlist
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for IMP command line parmameter
+gotid4:
+	ld	hl,parm1
+	ld	de,IMPstr
+	call	striequ
+	jr	nz,gotid5
+	jp	import
+
+gotid5:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; display FDC usage (help)
+info:
+	call	clrscr
+	ld	hl,intro
+	call	print
+	jp	exit
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; request and display the status string of the Floppy-80
+getsta:
+	call	clrscr
+
+	; set response length to 0
+	ld	a,0
+	ld	hl,RESPONSE_ADDR
+	ld	(hl),a
+	ld	hl,RESPONSE_ADDR+1
+	ld	(hl),a
+
+	; issue status request
+	ld	a,GETSTAUS_CMD
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
+
+	call	wait_for_response
+
+	; display status response
+	ld	hl,RESPONSE_ADDR+2
+	call	print
+
+	ld	a,(REQUEST_ADDR)	; if mounting an ini file then hang until reset pressed
+	cp	80h
+	jr	nz,getsta_exit
+
+	ld	hl,prompt_reset
+	call	print
+getsta_loop:
+	jp	getsta_loop
+
+getsta_exit:
+	jp	exit
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; parm2 - points to command line option 2 (the file name)
+import:
+	; replace . with / in the file specification
+	ld	hl,parm2
+	ld	b,'.'
+	ld	c,'/'
+	call	strchr_replace
+
+	; initialze FCB
+	ld	de,fcb
+	ld	hl,parm2
+	call	fspec
+
+	; check for an error
+	jz	import1
+	ld	hl,imperr1
+	call	print
+	jmp	exit
+
+import1:
+	; open the file
+	ld	hl,fcbbuf
+	ld	de,fcb
+	call	finit
+
+	; check for an error
+	jr	z,import2
+	ld	hl,imperr2
+	call	print
+	ret
+
+import2:
+	; if here then the file should be ready to receive data
+
+	; build and send open file request to Floppy-80
+	ld	de,xferbuf
+	ld	hl,parm2
+	call	strcpy		; HL - source; DE - destination;
+
+	ld	hl,openr	; append ', r'
+	ld	de,xferbuf
+	call	strcat		; HL - source; DE - destination;
+
+	; for debuging display string to be sent to Floppy-80
+	ld	hl,xferbuf
+	call	print
+	ld	a,13
+	call	putc
+
+	; drive select for host
+	ld	a,0FH
+	out	(0F4H),a
+
+	; send file specification and open mode (r/w)
+	ld	hl,xferbuf
+	call	strlen
+	inc     b
+	call	writedata	; hl - points to the data to be written
+				; b  - contains the number of bytes to be written
+
+	; open file command (mode r/w is specified in string)
+	ld	a,OPENFILE_CMD
+	out	(0F0H),a
+
+	call	wait_for_response	; wait until Floppy-80 has completed the request
+
+imploop:
+	; read data from Floppy-80
+	ld	a,0FH		; host drive select
+	out	(0F4H),a
+	ld	a,READFILE_CMD	; read file data
+	out	(0F0H),a
+	
+	ld	hl,xferbuf
+	call	readdata	; contains the address of the buffer to receive the bytes
+				; since up to 255 bytes can be read the buffer must be at
+				; least 255 bytes
+        			;
+		        	; returns: a - contains the number of bytes read
+	or	a
+	jr	z,impdone
+
+	; if here we have data in xferbuf to be written (byte count in a)
+
+	ld	b,a
+	ld	hl,xferbuf
+	ld	de,fcb
+	call	fwrite
+
+	; display . for each block received
+	ld	a,'.'
+	call	putc
+
+	jp	imploop
+
+impdone:
+	; all done, close file and exit
+	ld	de,fcb
+	call	fclose
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; de - address of the File Control Block (FCB) to be initialized
+; lh - address of file specification
+fspec:
+	ld	a,(model)
+	or	a
+	jr	z,fspec3	; 0 => model 3
+	dec	a
+	jr	z,fspec4	; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+fspec3:
+	call	441ch
+	ret
+
+fspec4:
+	; for model 4
+	ld	a,@fspec
+	rst	$28
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; de - address of File Control Block (FCB) for the file
+; hl - address of buffer to be used when accessing the file
+finit:
+	ld	a,(model)
+	or	a
+	jr	z,finit3	; 0 => model 3
+	dec	a
+	jr	z,finit4	; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+finit3:
+	ld	b,1
+	call	4420h
+	ret
+
+finit4:
+	; for model 4
+	ld	a,@init
+	ld	b,1		; 1-byte record size
+	rst	$28
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; de - address of File Control Block (FCB) of file to close.
+fclose:
+	ld	a,(model)
+	or	a
+	jr	z,fclose3	; 0 => model 3
+	dec	a
+	jr	z,fclose4	; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+fclose3:
+	call	4428h
+	ret
+
+fclose4:
+	; for model 4
+	ld	a,@close
+	rst	$28
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; b  - contains the number of bytes to write
+; de - contains the address of the fcb
+; hl - contains the address of the bytes to write
+fwrite:
+	ld	a,(model)
+	or	a
+	jr	z,fwrite3	; 0 => model 3
+	dec	a
+	jr	z,fwrite4	; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+fwrite3:
+	ld	c,(hl)
+	call	4439h
+	inc	hl
+	djnz	fwrite3
+
+	ret
+
+fwrite4:
+	; for model 4
+	ld	a,@put
+	ld	c,(hl)
+	rst	$28
+	inc	hl
+	djnz	fwrite4
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; de - holds the next entry in lnbuf to copy the file name
+; c  - counts the number of files found
+;
+; (opcode) - specifies the code for findfirst
+; 		0x02 - all files
+;               0x80 - .INI files
+;               0x81 - .DMK files
+;               0x82 - .HFE files
+;
+getlist:
+	call	clrscr
+
+	; check if parm2 (the file was specified on the cmd line)
+	ld	a,(parm2)
+	cp	0
+	jr	z,getlist10
+
+	; if ((opcode) == 0x80) then set parm3 = '0' and call mountfile
+	ld	a,(opcode)
+	cp	80h
+	jr	nz,getlist1
+
+	; parm3[0] = '0'
+	; parm3[1] = 0
+	ld	a,'0'
+	ld	(parm3),a
+	ld	a,0
+	ld	(parm3+1),a
+
+	call	mountfile
+	jp	getsta
+
+getlist1:
+	; make sure drive index was specified
+	ld	a,(parm3)
+	cp	0
+	jr	nz,oktomount	; drive index was not specified
+	ld	hl,error1
+	call	print
+	jp	info
+
+oktomount:
+	call	mountfile
+	jp	getsta
+
+getlist10:
+	ld	de,lnbuf
+	ld	a,0		; ini file counter (found = 0)
+	ld	(found),a
+	ld	a,(opcode)
+	ld	b,a
+	call	findfirst
+
+getlist20:
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for empty string
+	ld	hl,xferbuf
+	ld	a,(hl)
+	cp	0
+	jr	z,getlist30
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; then we found another one (found += 1)
+	ld	a,(found)
+	inc	a
+	ld	(found),a
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; skip file date and file size
+	ld	hl,xferbuf
+	call	skipblanks
+	call	skiptoblank
+	call	skipblanks
+	call	skiptoblank
+	call	skipblanks
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; at this point hl contains the address of the first
+	; character of the file name
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; save de on the stack
+	push	de
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; copy file name to lnbuf
+	push	hl
+	call	strcpy		; HL - source; DE - destination;
+	pop	hl
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; display file name
+	push	bc
+
+	ld	a,(found)
+	add	a,'0'
+	call	putc
+
+	ld	a,' '
+	call	putc
+
+	; display file name
+	call	print
+
+	ld	a,13
+	call	putc
+
+	pop	bc
+	
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; restore de and add LLEN
+	pop	de
+
+	; de += LLEN
+	ld	a,e
+	add	a,LLEN
+	ld	e,a
+	ld	a,d
+	adc	a,0
+	ld	d,a
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test if we already have 9 entries
+
+	; if (c == 8) then show prompt
+	ld	a,(found)
+	cp	8
+	jr	z,getlist30	; then a == 8
+
+getnext:
+	call	findnext
+	jp	getlist20
+
+getnextset:
+	call	clrscr
+	ld	de,lnbuf
+	ld	a,0		; ini file counter (found = 0)
+	ld	(found),a
+	jp	getnext
+
+getlist30:
+	; test if any entries were found
+	ld	a,(found)
+	or	a
+	jr	z,getlist40
+
+	; if here then we have at least one entry
+
+	; initialize drive selection to '0'
+	ld	a,'0'
+	ld	(drive),a
+
+	; prompt user for selection
+	ld	hl,prompt_part1
+	call	print
+
+	ld	a,(found)
+	add	a,'0'
+	call	putc
+
+	ld	hl,prompt_part2
+	call	print
+
+	call	getchar
+	ld	(select),a	; save copy of selection
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test if a valid selection
+
+	; if a < '1' then go around again
+	cp	a,'1'
+	jr	c,getnextset
+
+	; if a > (found) then go around again
+	ld	a,(found)
+	add	a,'0'
+	ld	b,a		; b = highest available selection
+	ld	a,(select)	; a = user input
+	cp	a,b
+	jr	c,mount
+	jr	z,mount
+	jp	getnextset
+
+	; else try to mount selected image
+mount:
+	; if (opcode == FINDINI_CMD) then don't ask user for drive index
+	ld	a,(opcode)
+	cp	FINDINI_CMD
+	jr	z,mount2
+
+	; if here then we need to ask user for drive index
+	ld	hl,prompt_drive
+	call	print
+
+mount1:	call	getchar
+	ld	(drive),a	; save copy of drive
+
+	; validate drive selection
+	; if (a < '0') then try again
+	cp	a,'0'
+	jr	c,mount1
+
+	; if (a > '3') then try again
+	cp	'3'
+	jr	c,mount2	; A was less than '3'
+	jr	z,mount2	; A was exactly equal to '3'
+	jp	mount1
+
+mount2:	ld	(parm3),a
+	ld	a,0
+	ld	(parm3+1),a
+
+	call	setparms
+	call	mountfile
+	jp	getsta
+
+getlist40:
+	jp	exit
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; initializes parm1, parm2 and parm3 based on user selection to be
+; passed to mountfile.
+;
+; (select) - memory location contains the index of the desired selection.
+;
+; (drive)  - memory location contains the index of the drive selection ('0'-'3')
+;
+setparms:
+	; parm3[0] = (drive);
+	; parm3[1] = 0;
+	ld	a,(drive)
+	ld	(parm3),a
+	ld	a,0
+	ld	(parm3+1),a
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; calculate file buffer pointer (hl = ((select) - '1') * LLEN + lnbuf)
+	ld	a,(select)
+	sub	'1'
+	ld	de,LLEN
+	call	Mul8		; HL = DE * A
+
+	ld	de,lnbuf
+	add	hl,de
+
+	ld	de,parm2
+	call	strcpy
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; build the mount command string from the contents of parm1 and parm2
+;
+; then sends the mount command code and command text to the
+; Floppy-80 controller.
+;
+; parm3 - ASCII character indicating the desired drive ('0'-'3')
+;
+; parm2 - contains the filename.ext
+;
+mountfile:
+	call	wait_for_response
+
+	; build command string in xferbuf
+	; '0 filename.ext' (replace 0 with desired drive number)
+	ld	de,xferbuf
+	ld	hl,parm3
+	call	strcpy
+
+	; add space
+	ld	hl,space
+	ld	de,xferbuf
+	call	strcat
+
+	; add parm2
+	ld	hl,parm2
+	ld	de,xferbuf
+	call	strcat
+
+	ld	a,0FH		; drive select for host
+	out	(0F4H),a
+
+	ld	hl,xferbuf
+	call	strlen
+	inc	b
+	call	writedata	; hl - points to the data to be written
+				; b  - contains the number of bytes to be written
+	ld	a,MOUNT_CMD	; mount command
+	out	(0F0H),a
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; return HL = DE * A
+Mul8:	push	b
+	ld	hl,0		; HL is used to accumulate the result
+	ld	b,8		; the multiplier (A) is 8 bits wide
+Mul8Loop:
+	rrca			; putting the next bit into the carry
+	jp	nc,Mul8Skip	; if zero, we skip the addition (jp is used for speed)
+	add	hl,de		; adding to the product if necessary
+Mul8Skip:
+	sla	e		; calculating the next auxiliary product by shifting
+	rl	d		; DE one bit leftwards (refer to the shift instructions!)
+	djnz	Mul8Loop
+	pop	b
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; increments HL until the memory location pointed to by HL is not
+; a space (32)
+;
+; HL - points to the string
+;
+skipblanks:
+	ld	a,(hl)
+	cp	32		; space
+	jr	nz,skipblanks1
+	inc	hl
+	jr	skipblanks
+
+skipblanks1:
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; increments HL until the memory location pointed to by HL is a
+; space (32) or a null (0)
+;
+; HL - points to the string
+;
+skiptoblank:
+	ld	a,(hl)
+
+	cp	32		; space
+	jr	z,skiptoblank1
+	
+	cp	0
+	jr	z,skiptoblank1
+
+	inc	hl
+	jr	skiptoblank
+
+skiptoblank1:
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; copies the string start at location indicated by hl to the location
+; indicated by de. copy stops when the null termination of the hl
+; string is detected. the de string is terminated with a null.
+;
+; Parameters:
+;	HL - source
+;	DE - destination
+;
+; Returns:
+;	HL - last location of source accessed (points to the null)
+;	DE - last location of destingation accessed (points to the null)
+;
+strcpy:	push	hl
+	push	de
+
+	; copy string until null is detected
+strcpy1:
+	ld	a,(hl)
+	inc	hl
+	ld	(de),a
+	inc	de
+	cp	0
+	jr	nz,strcpy1
+
+	pop	de
+	pop	hl
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Parameters:
+;	HL - source
+;	DE - destination
+;
+strcat:	push	hl
+	push	de
+
+	; locate null byte of destination string
+strcat1:
+	ld	a,(de)
+	cp	0
+	jr	z,strcat2
+	inc	de
+	jp	strcat1
+
+	; copy string until null is detected
+strcat2:
+	ld	a,(hl)
+	inc	hl
+	ld	(de),a
+	inc	de
+	cp	0
+	jr	nz,strcat2
+
+	pop	de
+	pop	hl
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; counts the number of characters in the null terminated string
+; pointed to by hl. the maximum string length is 255.
+;
+; HL - address of the string
+;
+; return: b - contains the length of the string
+;
+strlen:	push	hl
+	ld	b,255
+
+	; locate null terminator
+strlen1:
+	inc	b
+	ld	a,(hl)
+	inc	hl
+	cp	0
+	jr	nz,strlen1
+
+	pop	hl
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; compares the two strings pointed to by HL and DE are the same.
+; comparison is case independent ('a' is considered the same as 'A').
+; sets z flag if thy are the same.
+striequ:
+	; Load next chars of each string
+	ld	a, (de)
+	call	toupper
+	ld	b, a
+
+	ld	a, (hl)
+	call	toupper
+
+	; Compare
+	cp	b
+
+	; Return non-zero if chars don't match
+	ret	nz
+
+	; Check for end of both strings
+	cp	0
+
+	; Return if strings have ended
+	ret	z
+
+	; Otherwise, advance to next chars
+	inc	hl
+	inc	de
+	jr	striequ
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; hl - points to the string to scan
+; b  - contains the character to be replaced
+; c  - contains the character to replace with
+strchr_replace:
+	ld	a,(hl)
+	cp	b
+	jr	nz,replace1	; not the same as b
+
+	; if here (hl) is the same as b, then replace with c
+	ld	a,c
+	ld	(hl),a
+
+replace1:
+
+	; test for null terminator
+	ld	a,(hl)
+	cp	0
+
+	; Return if strings have ended
+	ret	z
+
+	; repeat
+	inc	hl
+	jp	strchr_replace
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; copys the command line options to the parm1, parm2 and parm3 arrays
+;
+; HL - points to the command line
+;
+getparms:
+	push	hl
+
+	; initialize parm1 and parm2 arrays to zeros
+	ld	hl,parm1
+	ld	a,0
+	ld	b,PARMSIZE
+	call	memset		; HL - destination
+				; a  - value to fill memory with
+				; b  - the number of bytes in memory to set
+	ld	hl,parm2
+	ld	a,0
+	ld	b,PARMSIZE
+	call	memset		; HL - destination
+				; a  - value to fill memory with
+				; b  - the number of bytes in memory to set
+	ld	hl,parm3
+	ld	a,0
+	ld	b,PARMSIZE
+	call	memset		; HL - destination
+				; a  - value to fill memory with
+				; b  - the number of bytes in memory to set
+
+	pop	hl
+
+	; (hl) points to the command line options
+	ld	de,parm1
+	call	copyparm
+	cp	a,13		; if CR then no more paramters
+	jr	z,getparms1
+
+	ld	de,parm2
+	call	copyparm
+	cp	a,13		; if CR then no more paramters
+	jr	z,getparms1
+
+	ld	de,parm3
+	call	copyparm
+
+getparms1:
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; sets the specified bytes of memory to the specified value
+;
+; HL - destination
+; a  - value to fill memory with
+; b  - the number of bytes in memory to set
+;
+memset:	ld	(hl),a
+	inc	hl
+	djnz	memset
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; copy string until null, space or CR (13) is detected
+;
+; parameters:
+;	HL - source
+;	DE - destination
+;
+; returns:
+;	a - contains the parameter termination charcter
+;
+copyparm:
+	ld	a,(hl)
+	inc	hl
+	ld	(de),a
+	inc	de
+	cp	0
+	jr	z,copyparm1
+	cp	13
+	jr	z,copyparm1
+	cp	' '
+	jr	z,copyparm1
+	jr	copyparm
+
+copyparm1:
+	push	a
+
+	; null terminate (space to null or CR to null)
+	dec	de
+	ld	a,0
+	ld	(de),a
+
+	pop	a
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; converts the character in a to uppercase. if the character is not
+; between 'a' and 'z' inclusive it is left as is.
+;
+toupper:
+	; if (a < 'a') then return a
+	cp	'a'
+	jr	c,toupper2	; then a < 'a'
+
+	; if (a > 'z') then return a
+	cp	'z'
+	jr	c,toupper1	; then a < 'z'
+	jp	toupper2
+
+toupper1:
+	and	0DFH		; make uppercase (by clearing bit 5)
+
+toupper2:
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; on entry: b = 0x02 - all files
+;               0x80 - .INI files
+;               0x81 - .DMK files
+;               0x82 - .HFE files
+;
+; returns:
+;   a = contains the number of bytes read into xferbuf
+;   a == 0 indicates no file found
+;   a != 0 indicates the file information in xferbuf
+;
+findfirst:
+	; set response length to 0
+	ld	a,0
+	ld  hl,RESPONSE_ADDR
+	ld	(hl),a
+	ld  hl,RESPONSE_ADDR+1
+	ld	(hl),a
+
+	; find first command
+	ld	a,b
+	ld  hl,REQUEST_ADDR
+	ld	(hl),a
+
+	; ReadData(psz, nMaxLen);
+	ld	hl,xferbuf
+	call	readdata
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; on exit a is the number of bytes read
+;   a == 0 indicates no file found
+;   a != 0 indicates the file information in xferbuf
+;
+findnext:
+	; set response length to 0
+	ld	a,0
+	ld  hl,RESPONSE_ADDR
+	ld	(hl),a
+	ld  hl,RESPONSE_ADDR+1
+	ld	(hl),a
+
+	; find next command
+	ld	a,FINDNEXT_CMD
+	ld  hl,REQUEST_ADDR
+	ld	(hl),a
+
+	; ReadData(psz, nMaxLen);
+	ld	hl,xferbuf
+	call	readdata
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; read a block of bytes from Floppy-80
+;
+; parameters:
+;	hl - contains the address of the buffer to receive the bytes
+;            since up to 255 bytes can be read the buffer must be at
+;            least 255 bytes
+;
+; returns:
+;	a - contains the number of bytes read
+;
+readdata:
+	ld  a,0
+	ld  (hl),a
+
+	call	wait_for_response
+
+	ld  de,RESPONSE_ADDR
+	ld  a,(de)
+
+	push	a
+	ld  b,a
+
+	; test for zero length data/string
+	cp	0
+	jr	z,readdata2
+
+	ld	b,a         ; b will hold the loop counter
+
+	ld  de,RESPONSE_ADDR+2
+
+readdata1:
+	ld  a,(de)
+	inc de
+	ld	(hl),a
+	inc	hl
+	djnz	readdata1
+
+	; null terminate str
+	ld	a,0
+	ld	(hl),a
+
+readdata2:
+	pop	a
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; sends bytes to the Floppy-80
+;
+; parameters:
+;	hl - points to the data to be written
+;	b  - contains the number of bytes to be written
+;
+writedata:
+	ld  de,REQUEST_ADDR+2
+
+writedata1:
+	ld	a,(hl)
+	ld  (de),A
+	inc de
+	inc	hl
+	djnz	writedata1
+
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; just waste some time
+delay:
+	push	b
+	ld	b,0
+dly:
+	djnz	dly
+	pop	b
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; wait for the Floppy-80 status to be not busy
+; times out if the bust flag remains set.
+wait_for_response:
+	push	a
+	push	b
+	push    hl
+
+	ld	b,0
+
+wnb1:
+	ld  hl,RESPONSE_ADDR
+	ld	a,(hl)
+	jr	nz,wnb3
+	ld  hl,RESPONSE_ADDR+1
+	ld	a,(hl)
+	jr	nz,wnb3
+
+wnb2:
+	call	delay		; give Floppy-80 time to do its thing
+	djnz	wnb1		; time out after 256 loops
+
+wnb3:
+	pop hl
+	pop	b
+	pop	a
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; wait for the Data Request status flag to get set in the Floppy-80
+; times out if the DRQ flag remains low.
+waitdrq:
+	push	a
+	push	b
+
+	ld	b,0
+	ld	c,0
+
+	; set drive select to 0x0F,
+	; this puts the Floppy-80 into host mode to get proper status
+	ld	a,0FH
+	out	(0F4H),a
+
+wdrq1:	in	a,(0F0H)	; read status register
+	bit	1,a
+	jr	nz,wdrq2
+	call	delay		; give Floppy-80 time to do its thing
+	djnz	wdrq1		; time out after 256 loops
+
+wdrq2:
+	pop	b
+	pop	a
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+clrscr:
+	ld	hl,cscr
+	call	print
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+putc:	push	af
+	ld	a,(model)
+	dec	a
+	jr	z,p4
+	dec	a
+	jr	nz,p13
+
+	; Model II character print
+	pop	af
+	push	af		; [
+	push	bc		; [
+	ld	b,a
+	cp	27
+	jr	nz,chok
+	ld	b,11
+chok:	ld	a,8		; VDCHAR
+	rst	8
+	pop	bc		; ]
+	pop	af		; ]
+	ret
+
+p4:	pop	af
+	push	bc
+	ld	c,a
+	ld	a,@dsp
+	rst	$28
+	ld	a,c
+	pop	bc
+	ret
+
+p13:	pop	af
+	jp	$33
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+print:
+	ld	a,(hl)
+	inc	hl
+	or	a
+	ret	z
+	call	putc
+	jr	print
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; get a character from the system.
+;
+; returns:
+;	a - contains the character associated with the user key press.
+;
+getchar:
+	push	de
+	ld	a,(model)
+	or	a
+	jr	z,getchar3	; 0 => model 3
+	dec	a
+	jr	z,getchar4	; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+	; Model II input auto inputs at end so add a character
+	inc	b
+	ld	a,5		; KBLINE
+	rst	8
+
+	; And it counts the terminating enter so trim that off
+	dec	b
+	pop	de
+	ret
+
+getchar3:			; model 3
+	ld	de,4015H
+	call	13H
+	or	a
+	jz	getchar3
+	jp	gexit
+
+getchar4:			; model 4
+	ld     a,@key
+	rst    $28
+
+gexit:
+	pop	de
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+exit:
+	ld	a,(model)
+	or	a
+	jr	z,exit3		; 0 => model 3
+	dec	a
+	jr	z,exit4		; 1 => model 4
+	dec	a
+	jp	nz,$40
+
+exit4:	ld	a,@exit
+	ld	hl,0
+	rst	$28
+	ret
+
+exit3:	ld	hl,0
+	call	402dh
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+intro:
+		ascii	'FDC utility version 0.0.3',13
+		ascii	'Command line options:',13
+		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
+;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13
+;		ascii	'GET - set TRS-80 date and time to the FDC date and time.',13
+;		ascii	'DIR - get a directory listing of the FDC SD-Card root folder.',13
+		ascii	'INI - select the default ini file.    FDC INI filename.ext',13
+		ascii	'DMK - mount a DMK disk image.         FDC DMK filename.ext n',13
+		ascii	'HFE - mount a HFE disk image.         FDC HFE filename.ext n',13
+		ascii   'IMP - import a file from the SD-Card. FDC IMP filename/ext:n',13
+;		ascii	'EXP - export a file to the SD-card.   FDC EXP filename/ext:n',13
+		ascii	' ',13
+		ascii	'      filename.ext - is the filename and extension.',13
+		ascii	'      n - is the drive number (0-3).',13,0
+
+error1:		ascii	'Error: drive index not specified on command line',13,13,0
+imperr1:	ascii	'Error: invalid file specification',13,13,0
+imperr2:	ascii	'Error: unable to open the specified file',13,13,0
+
+model3:		ascii	'Detected as a Model 3',13,0
+model4:		ascii	'Detected as a Model 4',13,0
+
+cscr:		ascii   ' ', 28, 31, 15, 0
+space:		ascii	' ', 0
+openr:		ascii	', r', 0
+openw:		ascii	', w', 0
+
+STAstr:		ascii	'STA',0
+INIstr:		ascii	'INI',0
+DMKstr:		ascii	'DMK',0
+HFEstr:		ascii	'HFE',0
+DIRstr:		ascii	'DIR',0
+IMPstr:		ascii	'IMP',0
+EXPstr:		ascii	'EXP',0
+
+prompt_part1:	ascii	'Press 1-',0
+prompt_part2:	ascii	' to select the desired file.',13
+				ascii	'Press any other key for next set of files.',13,0
+prompt_drive:	ascii	'Specify drive to mount to (0-3).',13,0
+prompt_reset:	ascii	'Press reset to continue.',13,0
+
+model:		defs	1	; 0=Model 3; 1=Model 4; 2=Model II;
+opcode:		defs	1	; command line operation requested (0=STA; 1=INI; 2=MNT;)
+found:		defs	1
+select:		defs	1
+drive:		defs	1
+
+fcb:		defs	48	; 48 for Model III TRSDOS 1.3   
+fcbbuf:		defs	256
+
+xferbuf:	defs	260	; transfer buffer
+lnbuf:		defs	(NLINES*LLEN)	; text buffer of NLINES lines of LLEN characters each
+
+parm1:		defs	PARMSIZE
+parm2:		defs	PARMSIZE
+parm3:		defs	PARMSIZE
+
+	end	start
