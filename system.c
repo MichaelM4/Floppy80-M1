@@ -646,11 +646,6 @@ void ProcessConfigEntry(char szLabel[], char* psz)
 		CopyString(psz, sysdef.szDrivePath[2], sizeof(sysdef.szDrivePath[2])-2);
 		ValidateIniPath(sysdef.szDrivePath[2], sizeof(sysdef.szDrivePath[2])-2);
 	}
-	else if (strcmp(szLabel, "DRIVE3") == 0)
-	{
-		CopyString(psz, sysdef.szDrivePath[3], sizeof(sysdef.szDrivePath[3])-2);
-		ValidateIniPath(sysdef.szDrivePath[3], sizeof(sysdef.szDrivePath[3])-2);
-	}
 	else if (strcmp(szLabel, "ROM") == 0)
 	{
 		CopyString(psz, sysdef.szRomPath, sizeof(sysdef.szRomPath)-2);

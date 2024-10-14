@@ -356,6 +356,26 @@ void __not_in_flash_func(service_memory)(void)
                         break;
 
                     default:
+                        if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP)) // fdc.cmd response area
+                        {
+
+                            rdwr = fdc_response(addr.w);
+                            sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+                            sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
+                            sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+
+                            // put byte on data bus
+                            sio_hw->gpio_togl = (sio_hw->gpio_out ^ (rdwr << D0_PIN)) & (0xFF << D0_PIN);
+
+                            ReleaseWait();
+
+                            // turn bus around
+                            sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
+                            sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
+                            sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+                            break;
+                        }
+
                         ReleaseWait();
                         break;
                 }
@@ -438,6 +458,23 @@ void __not_in_flash_func(service_memory)(void)
                         break;
 
                     default:
+                        if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
+                        {
+                            byte ch;
+
+                            // get data byte
+                            sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                            asm(
+                            "nop\n\t"
+                            "nop\n\t"
+                            "nop\n\t"
+                            );
+                            ch = sio_hw->gpio_in >> D0_PIN;
+                            sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+
+                            fdc_request(addr.w, ch);
+                        }
+
                         ReleaseWait();
                         break;
                 }

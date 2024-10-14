@@ -2,7 +2,7 @@
 #ifndef _SYSTEM_H
 #define _SYSTEM_H
 
-#define MAX_DRIVES 4
+#define MAX_DRIVES 3
 
 #ifndef MAX_PATH
 	#define MAX_PATH 256

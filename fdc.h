@@ -9,7 +9,7 @@ extern "C" {
 
 /* global defines ========================================================*/
 
-#define MAX_DRIVES 4
+#define MAX_DRIVES 3
 #define DMK_HEADER_SIZE 16
 
 #define BLOCK_SIZE 512
@@ -365,6 +365,17 @@ void fdc_write_drive_select(byte byData);
 byte fdc_read_nmi(void);
 void fdc_write_nmi(byte byData);
 void fdc_process_command_request(byte by);
+
+#define FDC_REQUEST_SIZE 0x200
+#define FDC_REQUEST_ADDR_START 0x3000
+#define FDC_REQUEST_ADDR_STOP  (FDC_REQUEST_ADDR_START+FDC_REQUEST_SIZE-1)
+
+#define FDC_RESPONSE_SIZE 0x200
+#define FDC_RESPONSE_ADDR_START (FDC_REQUEST_ADDR_START+FDC_RESPONSE_SIZE)
+#define FDC_RESPONSE_ADDR_STOP  (FDC_RESPONSE_ADDR_START+FDC_RESPONSE_SIZE-1)
+
+void fdc_request(word addr, byte data);
+byte fdc_response(word addr);
 
 #ifdef __cplusplus
 }

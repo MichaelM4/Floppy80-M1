@@ -153,6 +153,8 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
+char* g_pszVersion = {"0.0.2"};
+
 FdcType       g_FDC;
 FdcDriveType  g_dtDives[MAX_DRIVES];
 TrackType     g_tdTrack;
@@ -162,6 +164,23 @@ uint64_t g_nMaxSeekTime;
 uint32_t g_dwPrevTraceCycleCount = 0;
 char     g_szBootConfig[80];
 BYTE     g_byBootConfigModified;
+
+byte g_byFdcRequestBuffer[FDC_REQUEST_SIZE];
+byte g_byFdcResponseBuffer[FDC_RESPONSE_SIZE];
+
+file*   g_fOpenFile;
+DIR     g_dj;				// Directory object
+FILINFO g_fno;				// File information
+char    g_szBootConfig[80];
+BYTE    g_byBootConfigModified;
+
+char    g_szFindFilter[80];
+
+#define FIND_MAX_SIZE 100
+
+FILINFO g_fiFindResults[FIND_MAX_SIZE];
+int     g_nFindIndex;
+int     g_nFindCount;
 
 //-----------------------------------------------------------------------------
 int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
@@ -177,10 +196,6 @@ int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
 	else if (nDriveSel & 0x04)
 	{
 		return 2;
-	}
-	else if (nDriveSel & 0x08)
-	{
-		return 3;
 	}
 	
 	return -1;
@@ -1072,6 +1087,7 @@ void FdcLoadIni(void)
 	int   nLen;
 
 	g_byBootConfigModified = FALSE;
+    g_szBootConfig[0] = 0;
 
 	// read the default ini file to load on init
 	f = FileOpen("boot.cfg", FA_READ);
@@ -1120,6 +1136,8 @@ void FdcInit(void)
 {
 	int i;
 
+    memset(g_byFdcRequestBuffer, 0, sizeof(g_byFdcRequestBuffer));
+    memset(g_byFdcResponseBuffer, 0, sizeof(g_byFdcResponseBuffer));
 	memset(&g_FDC, 0, sizeof(g_FDC));
 	FdcSetFlag(eBusy);
 
@@ -2191,9 +2209,219 @@ void FdcServiceSendData(void)
 }
 
 //-----------------------------------------------------------------------------
+void SetResponseLength(byte* byResponse)
+{
+	int i = strlen((char*)(byResponse+2));
+	byResponse[0] = i & 0xFF;
+	byResponse[1] = (i >> 8) & 0xFF;
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessStatusRequest(void)
+{
+	char szBuf[64];
+	int  i;
+	
+    memset(g_byFdcResponseBuffer, 0, sizeof(g_byFdcResponseBuffer));
+
+	g_byFdcResponseBuffer[0] = 0;
+	g_byFdcResponseBuffer[1] = 0;
+
+	strcpy((char*)(g_byFdcResponseBuffer+2), "Pico FDC Version ");
+	strcat((char*)(g_byFdcResponseBuffer+2), g_pszVersion);
+	strcat((char*)(g_byFdcResponseBuffer+2), "\r");
+	strcat((char*)(g_byFdcResponseBuffer+2), "BootIni=");
+	strcat((char*)(g_byFdcResponseBuffer+2), g_szBootConfig);
+	strcat((char*)(g_byFdcResponseBuffer+2), "\r");
+
+	if (g_byBootConfigModified)
+	{
+		file* f;
+		char  szLine[256];
+		char  szSection[16];
+		char  szLabel[128];
+		char* psz;
+		int   nLen, nLeft, nRead;
+
+		f = FileOpen(g_szBootConfig, FA_READ);
+		
+		if (f == NULL)
+		{
+			strcat((char*)(g_byFdcResponseBuffer+2), "Unable to open specified ini file");
+		}
+		else
+		{
+			nLen = FileReadLine(f, (BYTE*)szLine, nRead);
+			
+			while (nLen >= 0)
+			{
+				if (nLen > 2)
+				{
+					strcat_s((char*)(g_byFdcResponseBuffer+2),  sizeof(g_byFdcResponseBuffer)-2, szLine);
+					strcat_s((char*)(g_byFdcResponseBuffer+2),  sizeof(g_byFdcResponseBuffer)-2, "\r");
+				}
+
+				nLen = FileReadLine(f, (BYTE*)szLine, 126);
+			}
+			
+			FileClose(f);
+		}
+	}
+	else
+	{
+		for (i = 0; i < MAX_DRIVES; ++i)
+		{
+			sprintf(szBuf, "%d: ", i);
+			strcat((char*)(g_byFdcResponseBuffer+2), szBuf);
+			strcat((char*)(g_byFdcResponseBuffer+2), g_dtDives[i].szFileName);
+			strcat((char*)(g_byFdcResponseBuffer+2), "\r");
+		}
+	}
+
+	SetResponseLength(g_byFdcResponseBuffer);
+}
+
+//-----------------------------------------------------------------------------
+int FdcFileListCmp(const void * a, const void * b)
+{
+	FILINFO* f1 = (FILINFO*) a;
+	FILINFO* f2 = (FILINFO*) b;
+
+	return stricmp(f1->fname, f2->fname);
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessFindFirst(char* pszFilter)
+{
+    FRESULT fr;  // Return value
+	int i;
+	
+	g_nFindIndex = 0;
+	g_nFindCount = 0;
+
+    memset(g_byFdcResponseBuffer, 0, sizeof(g_byFdcResponseBuffer));
+
+	strcpy((char*)(g_byFdcResponseBuffer+2), "too soon");
+
+    memset(&g_dj, 0, sizeof(g_dj));
+    memset(&g_fno, 0, sizeof(g_fno));
+	memset(g_fiFindResults, 0, sizeof(g_fiFindResults));
+
+	strcpy(g_szFindFilter, pszFilter);
+
+    fr = f_findfirst(&g_dj, &g_fno, "0:", "*");
+
+    if (FR_OK != fr)
+	{
+		strcpy((char*)(g_byFdcResponseBuffer+2), "No matching file found.");
+        SetResponseLength(g_byFdcResponseBuffer);
+        return;
+    }
+
+	while ((fr == FR_OK) && (g_fno.fname[0] != 0) && (g_nFindCount < FIND_MAX_SIZE))
+	{
+		if ((g_fno.fattrib & AM_DIR) || (g_fno.fattrib & AM_SYS))
+		{
+			// pcAttrib = pcDirectory;
+		}
+		else
+		{
+			if ((g_szFindFilter[0] == '*') || (stristr(g_fno.fname, g_szFindFilter) != NULL))
+			{
+				memcpy(&g_fiFindResults[g_nFindCount], &g_fno, sizeof(FILINFO));
+				++g_nFindCount;
+			}
+		}
+
+		if (g_fno.fname[0] != 0)
+		{
+			fr = f_findnext(&g_dj, &g_fno); /* Search for next item */
+		}
+	}
+
+	f_closedir(&g_dj);
+
+	if (g_nFindCount > 0)
+	{
+		qsort(g_fiFindResults, g_nFindCount, sizeof(FILINFO), FdcFileListCmp);
+
+		sprintf((char*)(g_byFdcResponseBuffer+2), "%2d/%02d/%d %7d ",
+				((g_fiFindResults[g_nFindIndex].fdate >> 5) & 0xF) + 1,
+				(g_fiFindResults[g_nFindIndex].fdate & 0xF) + 1,
+				(g_fiFindResults[g_nFindIndex].fdate >> 9) + 1980,
+				g_fiFindResults[g_nFindIndex].fsize);
+        strcat((char*)(g_byFdcResponseBuffer+2), (char*)g_fiFindResults[g_nFindIndex].fname);
+
+		++g_nFindIndex;
+	}
+
+    SetResponseLength(g_byFdcResponseBuffer);
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessFindNext(void)
+{
+    FRESULT fr = FR_OK;  /* Return value */
+	BYTE    bFound = FALSE;
+	
+    memset(g_byFdcResponseBuffer, 0, sizeof(g_byFdcResponseBuffer));
+
+	if (g_nFindIndex < g_nFindCount)
+	{
+		sprintf((char*)(g_byFdcResponseBuffer+2), "%2d/%02d/%d %7d ",
+				((g_fiFindResults[g_nFindIndex].fdate >> 5) & 0xF) + 1,
+				(g_fiFindResults[g_nFindIndex].fdate & 0xF) + 1,
+				(g_fiFindResults[g_nFindIndex].fdate >> 9) + 1980,
+				g_fiFindResults[g_nFindIndex].fsize);
+        strcat((char*)(g_byFdcResponseBuffer+2), (char*)g_fiFindResults[g_nFindIndex].fname);
+
+		++g_nFindIndex;
+	}
+	
+    SetResponseLength(g_byFdcResponseBuffer);
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessRequest(void)
+{
+    switch (g_byFdcRequestBuffer[0])
+    {
+        case 0: // do nothing
+            break;
+
+        case 1: // put status in response buffer
+            FdcProcessStatusRequest();
+            break;
+
+        case 3: // find next file
+            FdcProcessFindNext();
+            break;
+
+        case 0x80:
+			FdcProcessFindFirst(".INI");
+            break;
+
+        case 0x81:
+			FdcProcessFindFirst(".DMK");
+            break;
+
+        case 0x82:
+			FdcProcessFindFirst(".HFE");
+            break;
+    }
+}
+
+//-----------------------------------------------------------------------------
 void FdcServiceStateMachine(void)
 {
 	TestSdCardInsertion();
+
+    if (g_byFdcRequestBuffer[0] != 0)
+    {
+        FdcProcessRequest();
+        g_byFdcRequestBuffer[0] = 0;
+        return;
+    }
 
 	// check if we have a command to process
 	if (g_FDC.byCommandReceived != 0)
@@ -2226,22 +2454,6 @@ void FdcServiceStateMachine(void)
 		case psSeek:
 			FdcServiceSeeek();
 			break;
-		
-//		case psMountImage:
-//			FdcServiceMountImage();
-//			break;
-		
-//		case psOpenFile:
-//			FdcServiceOpenFile();
-//			break;
-		
-//		case psWriteFile:
-//			FdcServiceWriteFile();
-//			break;
-		
-//		case psSetTime:
-//			FdcServiceSetTime();
-//			break;
 	}
 }
 
@@ -2520,4 +2732,30 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 
 	FdcGetDriveIndex(byData);
 	g_FDC.dwMotorOnTimer = 2000000;
+}
+
+//-----------------------------------------------------------------------------
+// g_byFdcRequestBuffer[0]
+//   0x01 - get status
+void __not_in_flash_func(fdc_request)(word addr, byte data)
+{
+    if ((addr < FDC_REQUEST_ADDR_START) || (addr > FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
+    {
+        return;
+    }
+
+    addr -= FDC_REQUEST_ADDR_START;
+    g_byFdcRequestBuffer[addr] = data;
+}
+
+//-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_response)(word addr)
+{
+    if ((addr < FDC_RESPONSE_ADDR_START) || (addr > FDC_RESPONSE_ADDR_STOP)) // fdc.cmd request area
+    {
+        return 0;
+    }
+
+    addr -= FDC_RESPONSE_ADDR_START;
+    return g_byFdcResponseBuffer[addr];
 }
