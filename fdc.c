@@ -161,7 +161,7 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-char* g_pszVersion = {"0.0.2"};
+char* g_pszVersion = {"0.0.3"};
 
 FdcType       g_FDC;
 FdcDriveType  g_dtDives[MAX_DRIVES];

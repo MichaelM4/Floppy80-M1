@@ -221,6 +221,27 @@ void __not_in_flash_func(service_memory)(void)
 
         gpio_put(WAIT_PIN, 1);
 
+        // read low address byte
+        sio_hw->gpio_clr = 1 << ADDRL_OE_PIN;
+        asm(
+        "nop\n\t"
+        "nop\n\t"
+        "nop\n\t"
+        );
+        addr.b[0] = sio_hw->gpio_in >> D0_PIN;
+        sio_hw->gpio_set = 1 << ADDRL_OE_PIN;
+
+        // read high address byte
+        sio_hw->gpio_clr = 1 << ADDRH_OE_PIN;
+        asm(
+        "nop\n\t"
+        "nop\n\t"
+        "nop\n\t"
+        );
+        addr.b[1] = sio_hw->gpio_in >> D0_PIN;
+        sio_hw->gpio_set = 1 << ADDRH_OE_PIN;
+
+        // wait for RD or WR to go active or MREQ to go inactive
         while ((gpio_get(RD_PIN) != 0) && (gpio_get(WR_PIN) != 0) && (gpio_get(MREQ_PIN) == 0));
 
         if (gpio_get(RD_PIN) == 0)
@@ -234,29 +255,6 @@ void __not_in_flash_func(service_memory)(void)
         else
         {
             operation = opNop;
-        }
-
-        if (operation != opNop)
-        {
-            // read low address byte
-            sio_hw->gpio_clr = 1 << ADDRL_OE_PIN;
-            asm(
-            "nop\n\t"
-            "nop\n\t"
-            "nop\n\t"
-            );
-            addr.b[0] = sio_hw->gpio_in >> D0_PIN;
-            sio_hw->gpio_set = 1 << ADDRL_OE_PIN;
-
-            // read high address byte
-            sio_hw->gpio_clr = 1 << ADDRH_OE_PIN;
-            asm(
-            "nop\n\t"
-            "nop\n\t"
-            "nop\n\t"
-            );
-            addr.b[1] = sio_hw->gpio_in >> D0_PIN;
-            sio_hw->gpio_set = 1 << ADDRH_OE_PIN;
         }
 
         if (operation == opRead)
