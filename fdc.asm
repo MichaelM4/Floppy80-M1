@@ -119,8 +119,7 @@ gotid5:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; display FDC usage (help)
-info:
-	call	clrscr
+info:	call	clrscr
 	ld	hl,intro
 	call	print
 	jp	exit
@@ -1159,80 +1158,31 @@ wnb3:	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; wait for the Data Request status flag to get set in the Floppy-80
-; times out if the DRQ flag remains low.
-waitdrq:
-	push	a
-	push	b
-
-	ld	b,0
-	ld	c,0
-
-	; set drive select to 0x0F,
-	; this puts the Floppy-80 into host mode to get proper status
-	ld	a,0FH
-	out	(0F4H),a
-
-wdrq1:	in	a,(0F0H)	; read status register
-	bit	1,a
-	jr	nz,wdrq2
-	call	delay		; give Floppy-80 time to do its thing
-	djnz	wdrq1		; time out after 256 loops
-
-wdrq2:
-	pop	b
-	pop	a
-	ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-clrscr:
+clrscr:	push	hl
 	ld	hl,cscr
 	call	print
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-putc:	push	af
-	ld	a,(model)
-	dec	a
-	jr	z,p4
-	dec	a
-	jr	nz,p13
-
-	; Model II character print
-	pop	af
-	push	af		; [
-	push	bc		; [
-	ld	b,a
-	cp	27
-	jr	nz,chok
-	ld	b,11
-chok:	ld	a,8		; VDCHAR
-	rst	8
-	pop	bc		; ]
-	pop	af		; ]
+; A - character to display.
+putc:	push	de
+	call	$33
+	pop	de
 	ret
-
-p4:	pop	af
-	push	bc
-	ld	c,a
-	ld	a,@dsp
-	rst	$28
-	ld	a,c
-	pop	bc
-	ret
-
-p13:	pop	af
-	jp	$33
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; HL - points to the null terminated string to display.
-print:
-	ld	a,(hl)
+print:	push	hl
+print1:	ld	a,(hl)
 	inc	hl
 	or	a
-	ret	z
+	jr	z,print_end
 	call	putc
-	jr	print
+	jr	print1
+print_end:
+	pop	hl
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; get a character from the system.
@@ -1242,61 +1192,23 @@ print:
 ;
 getchar:
 	push	de
-	ld	a,(model)
-	or	a
-	jr	z,getchar3	; 0 => model 3
-	dec	a
-	jr	z,getchar4	; 1 => model 4
-	dec	a
-	jp	nz,$40
-
-	; Model II input auto inputs at end so add a character
-	inc	b
-	ld	a,5		; KBLINE
-	rst	8
-
-	; And it counts the terminating enter so trim that off
-	dec	b
-	pop	de
-	ret
-
-getchar3:			; model 3
+getchar3:
 	ld	de,4015H
 	call	13H
 	or	a
 	jz	getchar3
-	jp	gexit
 
-getchar4:			; model 4
-	ld	a,@key
-	rst	$28
-
-gexit:
 	pop	de
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-exit:
-	ld	a,(model)
-	or	a
-	jr	z,exit3		; 0 => model 3
-	dec	a
-	jr	z,exit4		; 1 => model 4
-	dec	a
-	jp	nz,$40
-
-exit4:	ld	a,@exit
-	ld	hl,0
-	rst	$28
-	ret
-
-exit3:	ld	hl,0
+exit:	ld	hl,0
 	call	402dh
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 intro:
-		ascii	'FDC utility version 0.0.5',13
+		ascii	'Model I FDC utility version 0.0.5',13
 		ascii	'Command line options:',13
 		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13

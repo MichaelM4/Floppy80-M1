@@ -37,7 +37,7 @@ static const unsigned short CRC_CCITT_TABLE[256] =
     0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-unsigned short Calculate_CRC_CCITT(const unsigned char* buffer, int size)
+unsigned short Calculate_CRC_CCITT(const unsigned char* buffer, int size, int step)
 {
     unsigned short tmp;
     unsigned short crc = 0xFFFF;
@@ -45,7 +45,7 @@ unsigned short Calculate_CRC_CCITT(const unsigned char* buffer, int size)
 
     for (i = 0; i < size ; i++)
     {
-        tmp = (crc >> 8) ^ buffer[i];
+        tmp = (crc >> 8) ^ buffer[i*step];
         crc = (crc << 8) ^ CRC_CCITT_TABLE[tmp];
     }
 

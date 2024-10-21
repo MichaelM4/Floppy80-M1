@@ -237,6 +237,7 @@ typedef struct {
 
 	int nFileOffset;              // byte offset from the start of the file to the start of this track
 
+	int  nDataSize[0x80];         // byte per data entry (1 = single; or 2=double byte data)
 	int  nIDAM[0x80];             // byte offset from start of track buffer for each ID Address Mark
 	int  nDAM[0x80];              // byte offset from start of track buffer for each Data Address Mark
 
@@ -255,6 +256,7 @@ typedef struct {
 typedef struct {
 	int   nSector;
 	int   nSectorSize;
+	int   nSectorDataSize;
 	int   nSectorDataOffset;		// offset from the start of the track buffer of the first data byte of the sector specified by nSector
 	BYTE  bySectorDataAddressMark;
 } SectorType;
@@ -275,6 +277,7 @@ typedef struct {
 	BYTE  byCommandReceived;		// contains the value of the last received command
 	BYTE  byCurCommand;
 	BYTE  byCommandType;			// 1, 2, 3 or 4
+	BYTE  byMultipleRecords;
 
 	short nStepDir;					// 1 = increase track reg on each step; -1 = decrease track reg on each step;
 	
