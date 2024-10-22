@@ -136,7 +136,7 @@ IDAM/Sector header:
 		bySectorData[SectorOffset-1] should be 0xA1
 		bySectorData[SectorOffset]   should be 0xFE
 		bySectorData[SectorOffset+1] is track address (should be the same as the nTrack parameter)
-		bySectorData[SectorOffset+2] side number			(should be the same as the nSide parameter)
+		bySectorData[SectorOffset+2] side number      (should be the same as the nSide parameter)
 		bySectorData[SectorOffset+3] sector number    (should be the same as the nSector parameter)
 		bySectorData[SectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
 
@@ -144,24 +144,24 @@ IDAM/Sector header:
 
 		bySectorData[SectorOffset]   should be 0xFE
 		bySectorData[SectorOffset+1] is track address (should be the same as the nTrack parameter)
-		bySectorData[SectorOffset+2] side number			(should be the same as the nSide parameter)
+		bySectorData[SectorOffset+2] side number      (should be the same as the nSide parameter)
 		bySectorData[SectorOffset+3] sector number    (should be the same as the nSector parameter)
 		bySectorData[SectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
 
 DAM marker values:
 
-						Single Density			Double Density
+			Single Density		Double Density
 	--------------------------------------------
-	0xFB			Normal data					Normal data
-	0xFA			User-defined				Invalid
-	0xF9			User-defines				Invalid
-	0xF8			Deleted data				Deleted data
+	0xFB	Normal data			Normal data
+	0xFA	User-defined		Invalid
+	0xF9	User-defines		Invalid
+	0xF8	Deleted data		Deleted data
 
 */
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-char* g_pszVersion = {"0.0.3"};
+char* g_pszVersion = {"0.0.4"};
 
 FdcType       g_FDC;
 FdcDriveType  g_dtDives[MAX_DRIVES];
