@@ -180,16 +180,6 @@ void InitGPIO(void)
     gpio_set_dir(CD_PIN, GPIO_IN);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// restart pio code to release WAIT state
-void __not_in_flash_func(ReleaseWait)(void)
-{
-    gpio_put(WAIT_PIN, 0);
-
-    // wait for MREQ to go inactive
-    while (gpio_get(MREQ_PIN) == 0);
-}
-
 //-----------------------------------------------------------------------------
 static inline byte get_gpio_data_byte(void)
 {
@@ -232,15 +222,270 @@ static inline void put_byte_on_bus(byte data)
     sio_hw->gpio_togl = (sio_hw->gpio_out ^ (data << D0_PIN)) & (0xFF << D0_PIN);
 }
 
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(service_memory)(void)
+///////////////////////////////////////////////////////////////////////////////
+// restart pio code to release WAIT state
+void __not_in_flash_func(ReleaseWait)(void)
 {
-    byte operation;
+    clr_gpio(WAIT_PIN);
+
+    // wait for MREQ to go inactive
+    while (get_gpio(MREQ_PIN) == 0);
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceReadOperation)(word addr)
+{
     byte data;
+
+    if (addr < 0x8000) // RD from lower 32k memory
+    {
+        switch (addr)
+        {
+            case 0x37E0: // RTC
+            case 0x37E1:
+            case 0x37E2:
+            case 0x37E3:
+                data = 0x3F;
+
+                if (g_FDC.status.byIntrRequest)
+                {
+                    data |= 0x40;
+                }
+
+                if (g_byRtcIntrActive)
+                {
+                    data |= 0x80;
+                    g_byRtcIntrActive = false;
+
+                    if (!g_byFdcIntrActive)
+                    {
+                        // deactivate intr
+                        clr_gpio(INT_PIN);
+                    }
+                }
+
+                clr_gpio(DIR_PIN);          // B to A direction
+                set_bus_as_output();        // make data pins (D0-D7) outputs
+                clr_gpio(DATAB_OE_PIN);     // enable data bus transciever
+
+                // put byte on data bus
+                put_byte_on_bus(data);
+
+                ReleaseWait();
+
+                // turn bus around
+                set_gpio(DATAB_OE_PIN);     // disable data bus transciever
+                set_bus_as_input();         // reset data pins (D0-D7) inputs
+                set_gpio(DIR_PIN);          // A to B direction
+                break;
+
+            case 0x37EC: // Cmd/Status register
+                if (!g_byRtcIntrActive)
+                {
+                    // deactivate intr
+                    clr_gpio(INT_PIN);
+                }
+
+            case 0x37ED: // Track register
+            case 0x37EE: // Sector register
+            case 0x37EF: // Data register
+                data = fdc_read(addr);
+
+                clr_gpio(DIR_PIN);          // B to A direction
+                set_bus_as_output();        // make data pins (D0-D7) outputs
+                clr_gpio(DATAB_OE_PIN);     // enable data bus transciever
+
+                // put byte on data bus
+                put_byte_on_bus(data);
+
+                ReleaseWait();
+
+                // turn bus around
+                set_gpio(DATAB_OE_PIN);     // disable data bus transciever
+                set_bus_as_input();         // reset data pins (D0-D7) inputs
+                set_gpio(DIR_PIN);          // A to B direction
+                break;
+
+            default:
+                if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP)) // fdc.cmd response area
+                {
+                    data = fdc_response(addr);
+                    clr_gpio(DIR_PIN);      // B to A direction
+                    set_bus_as_output();    // make data pins (D0-D7) outputs
+                    clr_gpio(DATAB_OE_PIN); // enable data bus transciever
+
+                    // put byte on data bus
+                    put_byte_on_bus(data);
+
+                    ReleaseWait();
+
+                    // turn bus around
+                    set_gpio(DATAB_OE_PIN); // disable data bus transciever
+                    set_bus_as_input();     // reset data pins (D0-D7) inputs
+                    set_gpio(DIR_PIN);      // A to B direction
+                    break;
+                }
+
+                ReleaseWait();
+                break;
+        }
+    }
+    else // RD from upper 32k memory
+    {
+        clr_gpio(DIR_PIN);                  // B to A direction
+        set_bus_as_output();                // make data pins (D0-D7) outputs
+        clr_gpio(DATAB_OE_PIN);             // enable data bus transciever
+
+        // put byte on data bus
+        put_byte_on_bus(by_memory[addr-0x8000]);
+
+        ReleaseWait();
+
+        // turn bus around
+        set_gpio(DATAB_OE_PIN);             // disable data bus transciever
+        set_bus_as_input();                 // reset data pins (D0-D7) inputs
+        set_gpio(DIR_PIN);                  // A to B direction
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceWriteOperation)(word addr)
+{
+    byte data;
+
+    if ((addr >= 0x3C00) && (addr <= 0x3FFF))
+    {
+        byte ch;
+
+        // get data byte
+        clr_gpio(DATAB_OE_PIN);
+        asm(
+        "nop\n\t"
+        "nop\n\t"
+        "nop\n\t"
+        );
+        ch = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+
+        VideoWrite(addr, ch);
+        ReleaseWait();
+    }
+    else if (addr < 0x8000) // WR to lower 32k memory
+    {
+        switch (addr)
+        {
+            case 0x37E0:
+            case 0x37E1:
+            case 0x37E2:
+            case 0x37E3: // drive select
+                // get data byte
+                clr_gpio(DATAB_OE_PIN);
+                asm(
+                "nop\n\t"
+                "nop\n\t"
+                "nop\n\t"
+                );
+                data = get_gpio_data_byte();
+                set_gpio(DATAB_OE_PIN);
+
+                fdc_write_drive_select(data);
+
+                ReleaseWait();
+                break;
+
+            case 0x37EC: // Cmd/Status register
+            case 0x37ED: // Track register
+            case 0x37EE: // Sector register
+            case 0x37EF: // Data register
+                // get data byte
+                clr_gpio(DATAB_OE_PIN);
+                asm(
+                "nop\n\t"
+                "nop\n\t"
+                "nop\n\t"
+                );
+                data = get_gpio_data_byte();
+                set_gpio(DATAB_OE_PIN);
+
+                fdc_write(addr, data);
+
+                ReleaseWait();
+                break;
+
+            default:
+                if ((addr >= FDC_REQUEST_ADDR_START) && (addr <= FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
+                {
+                    byte ch;
+
+                    // get data byte
+                    clr_gpio(DATAB_OE_PIN);
+                    asm(
+                    "nop\n\t"
+                    "nop\n\t"
+                    "nop\n\t"
+                    );
+                    ch = get_gpio_data_byte();
+                    set_gpio(DATAB_OE_PIN);
+
+                    fdc_request(addr, ch);
+                }
+
+                ReleaseWait();
+                break;
+        }
+    }
+    else // WR to upper 32k memory
+    {
+        // get data byte
+        clr_gpio(DATAB_OE_PIN);
+        asm(
+        "nop\n\t"
+        "nop\n\t"
+        "nop\n\t"
+        );
+        by_memory[addr-0x8000] = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+
+        ReleaseWait();
+    }
+}
+
+//-----------------------------------------------------------------------------
+word __not_in_flash_func(get_address)(void)
+{
     union {
         byte b[2];
         word w;
     } addr;
+
+    // read low address byte
+    clr_gpio(ADDRL_OE_PIN);
+    asm(
+    "nop\n\t"
+    "nop\n\t"
+    "nop\n\t"
+    );
+    addr.b[0] = get_gpio_data_byte();
+    set_gpio(ADDRL_OE_PIN);
+
+    // read high address byte
+    clr_gpio(ADDRH_OE_PIN);
+    asm(
+    "nop\n\t"
+    "nop\n\t"
+    "nop\n\t"
+    );
+    addr.b[1] = get_gpio_data_byte();
+    set_gpio(ADDRH_OE_PIN);
+
+    return addr.w;
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(service_memory)(void)
+{
+    byte data;
+    word addr;
 
     clr_gpio(WAIT_PIN);
 
@@ -255,257 +500,24 @@ void __not_in_flash_func(service_memory)(void)
         // activate WAIT_PIN
         set_gpio(WAIT_PIN);
 
-        // read low address byte
-        clr_gpio(ADDRL_OE_PIN);
-        asm(
-        "nop\n\t"
-        "nop\n\t"
-        "nop\n\t"
-        );
-        addr.b[0] = get_gpio_data_byte();
-        set_gpio(ADDRL_OE_PIN);
-
-        // read high address byte
-        clr_gpio(ADDRH_OE_PIN);
-        asm(
-        "nop\n\t"
-        "nop\n\t"
-        "nop\n\t"
-        );
-        addr.b[1] = get_gpio_data_byte();
-        set_gpio(ADDRH_OE_PIN);
+        addr = get_address();
 
         // wait for RD or WR to go active or MREQ to go inactive
         while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
 
         if (get_gpio(RD_PIN) == 0)
         {
-            operation = opRead;
+            ServiceReadOperation(addr);
         }
         else if (get_gpio(WR_PIN) == 0)
         {
-            operation = opWrite;
-        }
-        else
-        {
-            operation = opNop;
-        }
-
-        if (operation == opRead)
-        {
-            if (addr.w < 0x8000) // RD from lower 32k memory
-            {
-                switch (addr.w)
-                {
-                    case 0x37E0: // RTC
-                    case 0x37E1:
-                    case 0x37E2:
-                    case 0x37E3:
-                        data = 0x3F;
-
-                        if (g_FDC.status.byIntrRequest)
-                        {
-                            data |= 0x40;
-                        }
-
-                        if (g_byRtcIntrActive)
-                        {
-                            data |= 0x80;
-                            g_byRtcIntrActive = false;
-
-                            if (!g_byFdcIntrActive)
-                            {
-                                // deactivate intr
-                                clr_gpio(INT_PIN);
-                            }
-                        }
-
-                        clr_gpio(DIR_PIN);          // B to A direction
-                        set_bus_as_output();        // make data pins (D0-D7) outputs
-                        clr_gpio(DATAB_OE_PIN);     // enable data bus transciever
-
-                        // put byte on data bus
-                        put_byte_on_bus(data);
-
-                        ReleaseWait();
-
-                        // turn bus around
-                        set_gpio(DATAB_OE_PIN);     // disable data bus transciever
-                        set_bus_as_input();         // reset data pins (D0-D7) inputs
-                        set_gpio(DIR_PIN);          // A to B direction
-                        break;
-
-                    case 0x37EC: // Cmd/Status register
-                        if (!g_byRtcIntrActive)
-                        {
-                            // deactivate intr
-                            clr_gpio(INT_PIN);
-                        }
-
-                    case 0x37ED: // Track register
-                    case 0x37EE: // Sector register
-                    case 0x37EF: // Data register
-                        data = fdc_read(addr.w);
-
-                        clr_gpio(DIR_PIN);          // B to A direction
-                        set_bus_as_output();        // make data pins (D0-D7) outputs
-                        clr_gpio(DATAB_OE_PIN);     // enable data bus transciever
-
-                        // put byte on data bus
-                        put_byte_on_bus(data);
-
-                        ReleaseWait();
-
-                        // turn bus around
-                        set_gpio(DATAB_OE_PIN);     // disable data bus transciever
-                        set_bus_as_input();         // reset data pins (D0-D7) inputs
-                        set_gpio(DIR_PIN);          // A to B direction
-                        break;
-
-                    default:
-                        if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP)) // fdc.cmd response area
-                        {
-                            data = fdc_response(addr.w);
-                            clr_gpio(DIR_PIN);      // B to A direction
-                            set_bus_as_output();    // make data pins (D0-D7) outputs
-                            clr_gpio(DATAB_OE_PIN); // enable data bus transciever
-
-                            // put byte on data bus
-                            put_byte_on_bus(data);
-
-                            ReleaseWait();
-
-                            // turn bus around
-                            set_gpio(DATAB_OE_PIN); // disable data bus transciever
-                            set_bus_as_input();     // reset data pins (D0-D7) inputs
-                            set_gpio(DIR_PIN);      // A to B direction
-                            break;
-                        }
-
-                        ReleaseWait();
-                        break;
-                }
-            }
-            else // RD from upper 32k memory
-            {
-                clr_gpio(DIR_PIN);                  // B to A direction
-                set_bus_as_output();                // make data pins (D0-D7) outputs
-                clr_gpio(DATAB_OE_PIN);             // enable data bus transciever
-
-                // put byte on data bus
-                put_byte_on_bus(by_memory[addr.w-0x8000]);
-
-                ReleaseWait();
-
-                // turn bus around
-                set_gpio(DATAB_OE_PIN);             // disable data bus transciever
-                set_bus_as_input();                 // reset data pins (D0-D7) inputs
-                set_gpio(DIR_PIN);                  // A to B direction
-            }
-        }
-        else if (operation == opWrite)
-        {
-            if ((addr.w >= 0x3C00) && (addr.w <= 0x3FFF))
-            {
-                byte ch;
-
-                // get data byte
-                clr_gpio(DATAB_OE_PIN);
-                asm(
-                "nop\n\t"
-                "nop\n\t"
-                "nop\n\t"
-                );
-                ch = get_gpio_data_byte();
-                set_gpio(DATAB_OE_PIN);
-
-                VideoWrite(addr.w, ch);
-                ReleaseWait();
-            }
-            else if (addr.w < 0x8000) // WR to lower 32k memory
-            {
-                switch (addr.w)
-                {
-                    case 0x37E0:
-                    case 0x37E1:
-                    case 0x37E2:
-                    case 0x37E3: // drive select
-                        // get data byte
-                        clr_gpio(DATAB_OE_PIN);
-                        asm(
-                        "nop\n\t"
-                        "nop\n\t"
-                        "nop\n\t"
-                        );
-                        data = get_gpio_data_byte();
-                        set_gpio(DATAB_OE_PIN);
-
-                        fdc_write_drive_select(data);
-
-                        ReleaseWait();
-                        break;
-
-                    case 0x37EC: // Cmd/Status register
-                    case 0x37ED: // Track register
-                    case 0x37EE: // Sector register
-                    case 0x37EF: // Data register
-                        // get data byte
-                        clr_gpio(DATAB_OE_PIN);
-                        asm(
-                        "nop\n\t"
-                        "nop\n\t"
-                        "nop\n\t"
-                        );
-                        data = get_gpio_data_byte();
-                        set_gpio(DATAB_OE_PIN);
-
-                        fdc_write(addr.w, data);
-
-                        ReleaseWait();
-                        break;
-
-                    default:
-                        if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
-                        {
-                            byte ch;
-
-                            // get data byte
-                            clr_gpio(DATAB_OE_PIN);
-                            asm(
-                            "nop\n\t"
-                            "nop\n\t"
-                            "nop\n\t"
-                            );
-                            ch = get_gpio_data_byte();
-                            set_gpio(DATAB_OE_PIN);
-
-                            fdc_request(addr.w, ch);
-                        }
-
-                        ReleaseWait();
-                        break;
-                }
-            }
-            else // WR to upper 32k memory
-            {
-                // get data byte
-                clr_gpio(DATAB_OE_PIN);
-                asm(
-                "nop\n\t"
-                "nop\n\t"
-                "nop\n\t"
-                );
-                by_memory[addr.w-0x8000] = get_gpio_data_byte();
-                set_gpio(DATAB_OE_PIN);
-
-                ReleaseWait();
-            }
+            ServiceWriteOperation(addr);
         }
         else
         {
             ReleaseWait();
         }
-    }
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
