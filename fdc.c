@@ -2534,20 +2534,37 @@ void FdcProcessFindNext(void)
 //-----------------------------------------------------------------------------
 void FdcSaveBootCfg(char* pszIniFile)
 {
+	char szNewIniFile[30];
 	file* f;
+
+	strncpy(szNewIniFile, pszIniFile, sizeof(szNewIniFile)-1);
+
+	StrToUpper(szNewIniFile);
+
+	if (strstr(szNewIniFile, ".INI") == NULL)
+	{
+		strncat(szNewIniFile, ".INI", sizeof(szNewIniFile)-1);
+	}
+
+	if (!FileExists(szNewIniFile))
+	{
+		printf("%s does not exist, boot.cfg not modified.\r\n", szNewIniFile);
+		return;
+	}
 
 	f = FileOpen("boot.cfg", FA_WRITE | FA_CREATE_ALWAYS);
 	
 	if (f == NULL)
 	{
+		puts("Unable to open boot.cfg to write selected ini file.");
 		return;
 	}
 
 	g_byBootConfigModified = TRUE;
 
-	strcpy(g_szBootConfig, pszIniFile);
-	FileWrite(f, pszIniFile, strlen(pszIniFile));
+	FileWrite(f, szNewIniFile, strlen(szNewIniFile));
 	FileClose(f);
+	strcpy(g_szBootConfig, szNewIniFile);
 }
 
 //-----------------------------------------------------------------------------
