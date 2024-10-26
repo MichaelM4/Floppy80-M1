@@ -158,7 +158,6 @@ enum {
 	eNotReady,
 	eRecordType,
 	eDataRequest,
-	eIntrRequest
 };
 
 typedef struct {

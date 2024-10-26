@@ -500,13 +500,6 @@ void __not_in_flash_func(FdcSetFlag)(byte flag)
 		case eDataRequest:
 			g_FDC.status.byDataRequest = 1;
 			break;
-
-		case eIntrRequest:
-			g_FDC.status.byIntrRequest = 1;
-			g_byFdcIntrActive = true;
-		    gpio_put(INT_PIN, 1); // activate intr
- 			break;
-
 	}
 
 	FdcUpdateStatus();
@@ -555,11 +548,6 @@ void __not_in_flash_func(FdcClrFlag)(byte flag)
 
 		case eDataRequest:
 			g_FDC.status.byDataRequest = 0;
-			break;
-
-		case eIntrRequest:
-			g_FDC.status.byIntrRequest = 0;
-			g_byFdcIntrActive = false;
 			break;
 	}
 
@@ -1287,11 +1275,10 @@ void FdcInit(void)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(FdcGenerateIntr)(void)
 {
-	BYTE byNmiMaskReg = g_FDC.byNmiMaskReg;
-
 	g_FDC.byNmiStatusReg = 0x7F; // inverted state of all bits low except INTRQ
-
-	FdcSetFlag(eIntrRequest);
+	g_FDC.status.byIntrRequest = 1;
+	g_byFdcIntrActive = true;
+	set_gpio(INT_PIN); // activate intr
 }
 
 //-----------------------------------------------------------------------------
@@ -2780,7 +2767,8 @@ void __not_in_flash_func(fdc_command_write)(byte byData)
 	if (g_FDC.status.byIntrRequest)
 	{
 		g_FDC.byNmiStatusReg = 0xFF; // inverted state of all bits low except INTRQ
-		FdcClrFlag(eIntrRequest);
+		g_FDC.status.byIntrRequest = 0;
+		g_byFdcIntrActive = false;
 	}
 
 	g_FDC.byCommandReceived = 1;
@@ -2882,7 +2870,8 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			if (g_FDC.status.byIntrRequest)
 			{
 				g_FDC.byNmiStatusReg = 0xFF; // inverted state of all bits low except INTRQ
-				FdcClrFlag(eIntrRequest);
+				g_FDC.status.byIntrRequest = 0;
+				g_byFdcIntrActive = false;
 			}
 
 			break;
