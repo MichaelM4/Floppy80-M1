@@ -139,7 +139,7 @@ void ServiceCli(void)
         g_nCdcConnectDuration += GetTimeDiff(g_nCdcPrevTime, nTimeNow);
         g_nCdcPrevTime = nTimeNow;
 
-        if (g_nCdcConnectDuration < 2000)
+        if (g_nCdcConnectDuration < 2000000)
         {
             return;
         }
@@ -170,6 +170,13 @@ void ServiceCli(void)
             --g_nCommandLineIndex;
             g_szCommandLine[g_nCommandLineIndex] = 0;
             printf("\b \b");
+        }
+    }
+    else if (c < 32)
+    {
+        while (c != PICO_ERROR_TIMEOUT)
+        {
+            c = getchar_timeout_us(100);
         }
     }
     else if (g_nCommandLineIndex < sizeof(g_szCommandLine)-2)
