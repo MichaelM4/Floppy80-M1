@@ -28,7 +28,6 @@ char szHelpText[] = {
                         "dir    - returns a directory listing of the root folder of the SD-Card\n"
                         "         optionally include a filter.  For example dir .ini\n"
                         "boot   - selects an ini file to be specified in the boot.cfg\n"
-//                        "video  - returns a copy of the screen image\n"
                     };
 
 void InitCli(void)
@@ -100,12 +99,6 @@ void ProcessCommand(char* psz)
         FdcProcessStatusRequest(true);
         return;
     }
-
-    // if (stricmp(szCmd, "VIDEO") == 0)
-    // {
-    //     PrintVideo();
-    //     return;
-    // }
 
     puts("Unknown command");
     puts(szHelpText);

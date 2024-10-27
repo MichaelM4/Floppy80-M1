@@ -186,7 +186,6 @@ int main()
     SDHC_Init();
     FileSystemInit();
     FdcInit();
-    InitVideo();
     InitCli();
 
     // wait for reset to be released

@@ -11,7 +11,6 @@
 #include "hardware/structs/systick.h"
 #include "tusb.h"
 
-//#include "fdc.pio.h"
 #include "defines.h"
 #include "sd_core.h"
 #include "fdc.h"
@@ -19,10 +18,8 @@
 #include "video.h"
 #include "cli.h"
 
-#define NopDelay() __nop(); __nop(); __nop(); __nop();
+#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
 
-extern byte g_byVideoMemory[VIDEO_BUFFER_SIZE];
-extern word g_wVideoLinesModified[MAX_VIDEO_LINES];
 extern BufferType g_bFdcRequest;
 extern BufferType g_bFdcResponse;
 
@@ -107,32 +104,6 @@ void __not_in_flash_func(ServiceFdcRequestOperation)(word addr)
 }
 
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(ServiceVideoMemoryOperation)(word addr)
-{
-    byte data;
-
-    // wait for RD or WR to go active or MREQ to go inactive
-    while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
-
-    if (get_gpio(WR_PIN) == 0)
-    {
-        // get data byte
-        clr_gpio(DATAB_OE_PIN);
-        NopDelay();
-        data = get_gpio_data_byte();
-        set_gpio(DATAB_OE_PIN);
-
-        addr -= VIDEO_ADDR_START;
-        g_byVideoMemory[addr] = data;
-        ++g_wVideoLinesModified[addr/VIDEO_NUM_COLS];
-    }
-    else
-    {
-        clr_gpio(WAIT_PIN);
-    }
-}
-
-//-----------------------------------------------------------------------------
 void __not_in_flash_func(ServiceHighMemoryOperation)(word addr)
 {
     // wait for RD or WR to go active or MREQ to go inactive
@@ -149,10 +120,6 @@ void __not_in_flash_func(ServiceHighMemoryOperation)(word addr)
         NopDelay();
         by_memory[addr-0x8000] = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
-    }
-    else
-    {
-        clr_gpio(WAIT_PIN);
     }
 }
 
@@ -240,8 +207,6 @@ void __not_in_flash_func(ServiceFdcWriteOperation)(word addr)
             fdc_write(addr, data);
             break;
     }
-
-    clr_gpio(WAIT_PIN);
 }
 
 //-----------------------------------------------------------------------------
@@ -258,10 +223,6 @@ void __not_in_flash_func(ServiceFdcMemoryOperation)(word addr)
     {
         ServiceFdcWriteOperation(addr);
     }
-    else
-    {
-        clr_gpio(WAIT_PIN);
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -272,8 +233,6 @@ void __not_in_flash_func(service_memory)(void)
         byte b[2];
         word w;
     } addr;
-
-    clr_gpio(WAIT_PIN);
 
     while (1)
     {
@@ -306,11 +265,6 @@ void __not_in_flash_func(service_memory)(void)
             set_gpio(WAIT_PIN);
             ServiceFdcMemoryOperation(addr.w);
         }
-        // else if ((addr.w >= VIDEO_ADDR_START) && (addr.w <= VIDEO_ADDR_END))
-        // {
-        //     set_gpio(WAIT_PIN);
-        //     ServiceVideoMemoryOperation(addr.w);
-        // }
         else if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP))
         {
             set_gpio(WAIT_PIN);
