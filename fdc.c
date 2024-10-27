@@ -1610,13 +1610,12 @@ void FdcProcessReadSectorCommand(void)
 }
 
 //-----------------------------------------------------------------------------
-// Command code 1 0 0 m F2 E F1 a0
+// Command code 1 0 1 m b E a1 a0
 //
 // m  = 0 - single record read; 1 - multiple record read;
-// F2 = 0 - compare for side 0; 1 - compare for side 1;
+// b  = 0 - Non-IBM format; 1 - IDM format;
 // E  = 0 - no delay; 1 - 15 ms delay;
-// F1 = 0 - disable side select compare; 1 - enable side select compare;
-// a0 = 0 - 0xFB (Data Mark); 1 - 0xF8 (Deleted Data Mark);
+// a1/a0 = 00 - 0xFB (Data Mark); 01 - 0xFA (user defined); 10 - 0xF9 (use defined); 11 - 0xF8 (Deleted Data Mark);
 //
 void FdcProcessWriteSectorCommand(void)
 {
@@ -1657,9 +1656,7 @@ void FdcProcessWriteSectorCommand(void)
 }
 
 //-----------------------------------------------------------------------------
-// Command code 1 1 0 0 0 E 0 0
-//
-// E = 1 - 15ms delay; 0 - no 15ms delay;
+// Command code 1 1 0 0 0 1 0 0
 //
 void FdcProcessReadAddressCommand(void)
 {
@@ -1715,23 +1712,19 @@ void FdcProcessForceInterruptCommand(void)
     g_FDC.byCurCommand      = g_FDC.byCommandReg;
     g_FDC.byCommandReceived = 0;
     g_FDC.nProcessFunction  = psIdle;
-
 }
 
 //-----------------------------------------------------------------------------
-// Command code 1 1 1 0 0 E 0 0
+// Command code 1 1 1 0 0 1 0 S
 //
-// E = 1 - 15ms delay; 0 - no 15ms delay;
-//
+// S = 1 - Do not synchronize to AM; 0 - Synchronize to AM;
 void FdcProcessReadTrackCommand(void)
 {
 	g_FDC.byCommandType = 3;
 }
 
 //-----------------------------------------------------------------------------
-// Command code 1 1 1 1 0 E 0 0
-//
-// E = 1 - 15ms delay; 0 - no 15ms delay;
+// Command code 1 1 1 1 0 1 0 0
 //
 void FdcProcessWriteTrackCommand(void)
 {
