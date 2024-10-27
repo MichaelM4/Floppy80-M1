@@ -1208,7 +1208,7 @@ exit:	ld	hl,0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 intro:
-		ascii	'Model I FDC utility version 0.0.5',13
+		ascii	'Model I FDC utility version 0.0.6',13
 		ascii	'Command line options:',13
 		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13
@@ -1247,7 +1247,7 @@ prompt_part1:	ascii	'Press 1-',0
 prompt_part2:	ascii	' to select the desired file.',13
 		ascii	'Press any other key for next set of files.',13,0
 prompt_drive:	ascii	'Specify drive to mount to (0-2).',13,0
-prompt_reset:	ascii	'Press reset to continue.',13,0
+prompt_reset:	ascii	'Power OFF and back ON to continue.',13,0
 
 model:		defs	1		; 0=Model 3; 1=Model 4; 2=Model II;
 opcode:		defs	1		; command line operation requested (0=STA; 1=INI; 2=MNT;)
