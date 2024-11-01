@@ -14,7 +14,7 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
-#pragma GCC optimize ("Og")
+#pragma GCC optimize ("O3")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*

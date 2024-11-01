@@ -8,6 +8,7 @@ Boots
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
++ NEWDOS 3.0
 
 Format Drive
 --------------------
@@ -19,17 +20,19 @@ Format Drive
 - UltraDOS 4.2.0
 - VTDOS 3.0.0
 + VTDOS 4.0.1
+- NEWDOS 3.0 (Motor speed too fast, likely an issue with added wait states)
 
 Copy File
 --------------------
 + Lifeboat CPM 1.4.1
 + FMG CPM 1.5
-  Double DOS 4.2.4
+- Double DOS 4.2.4
 + LDOS 5.3.1
 + TRSDOS 2.3
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
+- NEWDOS 3.0
 
 FDC/CMD support
 --------------------
@@ -41,6 +44,7 @@ FDC/CMD support
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
++ NEWDOS 3.0
 
 + Positive
 - Negative

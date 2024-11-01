@@ -81,7 +81,10 @@
         "osal.h": "c",
         "tusb_fifo.h": "c",
         "file.h": "c",
-        "video.h": "c"
+        "video.h": "c",
+        "pico.h": "c",
+        "time.h": "c",
+        "datetime.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
