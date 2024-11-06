@@ -172,6 +172,7 @@ void InitGPIO(void)
 
     gpio_init(CD_PIN);
     gpio_set_dir(CD_PIN, GPIO_IN);
+    gpio_set_pulls(CD_PIN, true, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
