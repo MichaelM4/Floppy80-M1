@@ -13,7 +13,7 @@
 #include "fdc.h"
 #include "sd_core.h"
 
-//#define ENABLE_LOGGING 1
+#define ENABLE_LOGGING 1
 #pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -162,7 +162,7 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char* g_pszVersion = {"0.0.4"};
+static char* g_pszVersion = {"0.0.5"};
 
 static FdcType       g_FDC;
 static FdcDriveType  g_dtDives[MAX_DRIVES];
@@ -170,7 +170,6 @@ static TrackType     g_tdTrack;
 static SectorType    g_stSector;
 
 static char     g_szBootConfig[80];
-static BYTE     g_byBootConfigModified;
 
 static BufferType g_bFdcRequest;
 static BufferType g_bFdcResponse;
@@ -196,16 +195,17 @@ static uint32_t g_dwIndexTime;
 
 //-----------------------------------------------------------------------------
 
-volatile BYTE  g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
-							// of any command and is reset when the computer reads or writes to/from the DR.
-							//
-							// when 1 => command has been completed;
-							//      0 => command can be written or that a command is in progress;
-							//
-							// when enabled via the corresponding bit of byNmiMaskReg the NMI output is the inverted state of byIntrReq
+volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
+										// of any command and is reset when the computer reads or writes to/from the DR.
+										//
+										// when 1 => command has been completed;
+										//      0 => command can be written or that a command is in progress;
+										//
+										// when enabled via the corresponding bit of byNmiMaskReg the NMI output is the inverted state of byIntrReq
 
-volatile DWORD g_dwRotationCount;
-volatile DWORD g_dwMotorOnTimer;
+volatile DWORD   g_dwRotationCount;
+volatile DWORD   g_dwMotorOnTimer;
+volatile uint8_t g_byBootConfigModified;
 
 //-----------------------------------------------------------------------------
 int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
@@ -1426,7 +1426,8 @@ void FdcProcessSeekCommand(void)
 	g_FDC.byTrack = g_FDC.byData;
 	FdcClrFlag(eSeekError);
 	FdcSetFlag(eBusy);
-	g_FDC.dwStateCounter   = 10;
+	g_FDC.dwStateCounter   = 100;
+	g_FDC.dwStateTimer     = 0;
 	g_FDC.nProcessFunction = psSeek;
 }
 
@@ -2383,9 +2384,8 @@ void FdcServiceWriteTrack(void)
 //-----------------------------------------------------------------------------
 void FdcServiceSeek(void)
 {
-	if (g_FDC.dwStateCounter > 0)
+	if (g_FDC.dwStateTimer < 1000) // 1ms
 	{
-		--g_FDC.dwStateCounter;
 		return;
 	}
 
@@ -2713,11 +2713,12 @@ void FdcUpdateCounters(void)
 {
 	uint64_t nDiff;
 
+	g_nTimeNow  = time_us_64();
+	nDiff       = g_nTimeNow - g_nPrevTime;
+	g_nPrevTime = g_nTimeNow;
+
 	if (g_dwMotorOnTimer != 0)
 	{
-		g_nTimeNow  = time_us_64();
-		nDiff       = g_nTimeNow - g_nPrevTime;
-		g_nPrevTime = g_nTimeNow;
 		g_byMotorWasOn = 1;
 
 		g_dwMotorOnTimer  = CountDown(g_dwMotorOnTimer, nDiff);
@@ -2749,6 +2750,8 @@ void FdcUpdateCounters(void)
 			g_byMotorWasOn = 0;
 		}
 	}
+
+	g_FDC.dwStateTimer = CountUp(g_FDC.dwStateTimer, nDiff);
 }
 
 //-----------------------------------------------------------------------------
