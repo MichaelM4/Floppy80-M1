@@ -16,8 +16,6 @@ volatile byte g_byFdcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 
-extern FdcType g_FDC;
-
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(ServiceMemoryRead)(byte data)
 {
@@ -252,33 +250,17 @@ void __not_in_flash_func(service_memory)(void)
         }
         else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))
         {
-            if ((get_gpio(RD_PIN) == 0) && (addr.w == 0x37EC)) // reading status register
-            {
-                if (!g_byRtcIntrActive)
-                {
-                    clr_gpio(INT_PIN);
-                }
-
-                if (g_byIntrRequest)
-                {
-                    g_byIntrRequest = 0;
-                    g_byFdcIntrActive = false;
-                }
-
-                ServiceMemoryRead(g_FDC.byStatus);
-            }
-            else
-            {
-                set_gpio(WAIT_PIN);
-                ServiceFdcMemoryOperation(addr.w);
-            }
+            set_gpio(WAIT_PIN);
+            ServiceFdcMemoryOperation(addr.w);
         }
         else if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP))
         {
+            set_gpio(WAIT_PIN);
             ServiceFdcRequestOperation(addr.w);
         }
         else if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP))
         {
+            set_gpio(WAIT_PIN);
             ServiceFdcResponseOperation(addr.w);
         }
    }
