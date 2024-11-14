@@ -30,6 +30,7 @@ WRITEFILE_CMD equ 7
 CLOSEFILE_CMD equ 8
 SETTIME_CMD   equ 9
 GETTIME_CMD   equ 10
+FORMAT_CMD    equ 11
 
 FINDINI_CMD   equ 80h
 FINDDMK_CMD   equ 81h
@@ -115,7 +116,16 @@ gotid4:
 	jr	nz,gotid5
 	jp	import
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for FOR command line parmameter
 gotid5:
+	ld	hl,parm1
+	ld	de,FORstr
+	call	striequ
+	jr	nz,gotid6
+	jp	format
+
+gotid6:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; display FDC usage (help)
@@ -158,6 +168,39 @@ getsta_loop:
 
 getsta_exit:
 	jp	exit
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; parm2 - points to command line option 2 (drive number)
+format:
+	push	a
+	push	hl
+	push	de
+
+	; build command string in xferbuf
+	; '0 type' (replace 0 with desired drive number)
+	ld	hl,parm2
+	ld	de,xferbuf
+	call	strcpy
+
+	ld	hl,xferbuf
+	call	strlen
+	call	writedata	; hl - points to the data to be written
+				; b  - contains the number of bytes to be written
+
+	ld	a,FORMAT_CMD	; format command
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
+
+	call	wait_for_ready
+
+	; display status response
+	ld	hl,RESPONSE_ADDR+2
+	call	print
+
+	pop	de
+	pop	hl
+	pop	a
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; parm2 - points to command line option 2 (the file name)
@@ -940,7 +983,6 @@ memset1:
 ;	a - contains the parameter termination charcter
 ;
 copyparm:
-	push	hl
 	push	de
 copyparm1:
 	ld	a,(hl)
@@ -965,7 +1007,6 @@ copyparm2:
 
 	pop	a
 	pop	de
-	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1216,6 +1257,7 @@ intro:
 ;		ascii	'DIR - get a directory listing of the FDC SD-Card root folder.',13
 		ascii	'INI - select the default ini file.    FDC INI filename.ext',13
 		ascii	'DMK - mount a DMK disk image.         FDC DMK filename.ext n',13
+		ascii	'FOR - format DMK disk image.          FDC FOR n',13
 ;		ascii	'HFE - mount a HFE disk image.         FDC HFE filename.ext n',13
 ;		ascii   'IMP - import a file from the SD-Card. FDC IMP filename/ext:n',13
 ;		ascii	'EXP - export a file to the SD-card.   FDC EXP filename/ext:n',13
@@ -1239,6 +1281,7 @@ HFEstr:		ascii	'HFE',0
 DIRstr:		ascii	'DIR',0
 IMPstr:		ascii	'IMP',0
 EXPstr:		ascii	'EXP',0
+FORstr:		ascii	'FOR',0
 
 prompt_part1:	ascii	'Press 1-',0
 prompt_part2:	ascii	' to select the desired file.',13
