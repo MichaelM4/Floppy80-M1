@@ -18,8 +18,6 @@ volatile byte g_byFdcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 
-byte g_byTurnBusAround = false;
-
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(FinishReadOperation)(byte data)
 {
@@ -31,7 +29,6 @@ void __not_in_flash_func(FinishReadOperation)(byte data)
     put_byte_on_bus(data);
 
     clr_gpio(WAIT_PIN);
-    g_byTurnBusAround = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -39,14 +36,6 @@ void __not_in_flash_func(ServiceFdcResponseOperation)(word addr)
 {
     byte data;
     
-    if (get_gpio(RD_PIN)) // assume to be a WR
-    {
-        clr_gpio(DATAB_OE_PIN);
-        NopDelay();
-        data = get_gpio_data_byte();
-        set_gpio(DATAB_OE_PIN);
-    }
-
     // wait for RD or WR to go active or MREQ to go inactive
     while (get_gpio(RD_PIN) && get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
 
@@ -156,9 +145,10 @@ void __not_in_flash_func(ServiceFdcDriveSelectOperation)(void)
 void __not_in_flash_func(ServiceFdcCmdStatusOperation)(void)
 {
     byte data;
-    
+
     if (get_gpio(RD_PIN)) // assume to be a WR
     {
+        // set_gpio(WAIT_PIN);
         clr_gpio(DATAB_OE_PIN);
         NopDelay();
         data = get_gpio_data_byte();
@@ -292,12 +282,10 @@ void __not_in_flash_func(service_memory)(void)
         // wait for MREQ to go inactive
         while (!get_gpio(MREQ_PIN));
 
-        if (g_byTurnBusAround)
-        {
-            set_gpio(DATAB_OE_PIN); // disable data bus transciever
-            set_bus_as_input();     // reset data pins (D0-D7) inputs
-            set_gpio(DIR_PIN);      // A to B direction
-        }
+        // turn bus around
+        set_gpio(DATAB_OE_PIN); // disable data bus transciever
+        set_bus_as_input();     // reset data pins (D0-D7) inputs
+        set_gpio(DIR_PIN);      // A to B direction
 
         // wait for MREQ to go active
         while (get_gpio(MREQ_PIN));
@@ -328,12 +316,12 @@ void __not_in_flash_func(service_memory)(void)
 
         if (addr.w >= 0x8000)
         {
-            set_gpio(LED_PIN);
-            ServiceHighMemoryOperation(addr.w);
-            clr_gpio(LED_PIN);
+            ServiceHighMemoryOperation(addr.w); // 230ns to execute
         }
         else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))
         {
+            set_gpio(WAIT_PIN);
+
             switch (addr.w)
             {
                 case 0x37E0:

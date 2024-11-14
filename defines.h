@@ -190,6 +190,9 @@ extern volatile int32_t g_nRotationCount;
 void InitVars(void);
 void ReleaseWait(void);
 
+byte* TD230_GetPtr(void);
+int   TD230_Size(void);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #endif

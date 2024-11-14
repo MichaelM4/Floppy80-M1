@@ -46,6 +46,7 @@ add_executable(Floppy80
     file.c
     cli.c
     memory.c
+    TD230.c
 )
 
 # pull in common dependencies

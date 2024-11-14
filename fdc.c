@@ -13,7 +13,7 @@
 #include "fdc.h"
 #include "sd_core.h"
 
-// #define ENABLE_LOGGING 1
+//#define ENABLE_LOGGING 1
 // #pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -2374,9 +2374,8 @@ void FdcServiceWriteTrack(void)
 				break;
 			}
 
-			FdcGenerateIntr();
-
-			FdcClrFlag(eBusy);
+			// FdcGenerateIntr();
+			// FdcClrFlag(eBusy);
 			g_FDC.nServiceState    = 0;
 			g_FDC.nProcessFunction = psIdle;
 			break;
@@ -2658,6 +2657,54 @@ void FdcServiceMountImage(void)
 }
 
 //-----------------------------------------------------------------------------
+void FdcFormatDrive(void)
+{
+	char buf[64];
+	int  drive = atoi(g_bFdcRequest.buf);
+
+	if ((drive < 0) || (drive > (sizeof(g_dtDives)/sizeof(g_dtDives[0]))))
+	{
+		sprintf(buf, "Invalid drive number %d\n", drive);
+		strcpy((char*)(g_bFdcResponse.buf), buf);
+		SetResponseLength(&g_bFdcResponse);
+		return;
+	}
+
+	if (g_dtDives[drive].f == NULL)
+	{
+		sprintf(buf, "Drive must be mounted to be formated\n");
+		strcpy((char*)(g_bFdcResponse.buf), buf);
+		SetResponseLength(&g_bFdcResponse);
+		return;
+	}
+
+	FileClose(g_dtDives[drive].f);
+	g_dtDives[drive].f = NULL;
+
+	g_dtDives[drive].f = FileOpen(g_dtDives[drive].szFileName, FA_WRITE | FA_CREATE_ALWAYS);
+
+	if (g_dtDives[drive].f == NULL)
+	{
+		strcpy((char*)(g_bFdcResponse.buf), "Unable to create new DMK disk image.");
+		SetResponseLength(&g_bFdcResponse);
+		return;
+	}
+
+	sprintf(buf, "Formating drive %d (%s), ", drive, g_dtDives[drive].szFileName);
+
+	FileWrite(g_dtDives[drive].f, TD230_GetPtr(), TD230_Size());
+
+	FileClose(g_dtDives[drive].f);
+	g_dtDives[drive].f = NULL;
+
+	FdcMountDrive(drive);
+
+	strcat(buf, "complete.");
+	strcpy((char*)(g_bFdcResponse.buf), buf);
+	SetResponseLength(&g_bFdcResponse);
+}
+
+//-----------------------------------------------------------------------------
 void FdcProcessRequest(void)
 {
     switch (g_bFdcRequest.cmd[0])
@@ -2681,6 +2728,10 @@ void FdcProcessRequest(void)
 			FdcServiceMountImage();
 			break;
 			
+		case 11: // format mounted drive
+			FdcFormatDrive();
+			break;
+
         case 0x80:
 			FdcProcessFindFirst(".INI");
             break;
@@ -2757,6 +2808,7 @@ void FdcServiceStateMachine(void)
 	// check if we have a command to process
 	if (g_FDC.byCommandReceived != 0)
 	{
+		g_FDC.byCommandType = byCommandTypes[g_FDC.byCommandReg>>4];
 		FdcProcessCommand();
 		return;
 	}
@@ -2873,8 +2925,7 @@ void __not_in_flash_func(fdc_write_cmd)(byte byData)
     char szBuf[64];
 #endif
 
-	g_FDC.byCommandReg  = byData;
-	g_FDC.byCommandType = byCommandTypes[byData>>4];
+	g_FDC.byCommandReg = byData;
 
 	if (g_byIntrRequest)
 	{
@@ -2929,6 +2980,17 @@ void __not_in_flash_func(fdc_write_data)(byte byData)
 		{
 			g_FDC.status.byDataRequest = 1;
 			g_FDC.byStatus |= F_DRQ;
+		}
+		else
+		{
+			// FdcGenerateIntr();
+			g_byIntrRequest   = 1;
+			g_byFdcIntrActive = true;
+			g_byEnableIntr    = true;
+
+			// FdcClrFlag(eBusy);
+			g_FDC.status.byBusy = 0;
+			g_FDC.byStatus &= ~F_BUSY;
 		}
 	}
 
@@ -3135,8 +3197,7 @@ byte __not_in_flash_func(fdc_read_data)(void)
 #ifdef ENABLE_LOGGING
 				printf("RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
 #endif
-				g_FDC.byCommandReg  = 0x98;
-				g_FDC.byCommandType = byCommandTypes[9];
+				g_FDC.byCommandReg = 0x98;
 
 				if (g_byIntrRequest)
 				{
@@ -3209,4 +3270,3 @@ void __not_in_flash_func(fdc_put_request_byte)(word addr, byte data)
 		g_bFdcRequest.buf[addr-FDC_CMD_SIZE] = data;
 	}
 }
-
