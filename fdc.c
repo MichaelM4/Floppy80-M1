@@ -13,8 +13,8 @@
 #include "fdc.h"
 #include "sd_core.h"
 
-#define ENABLE_LOGGING 1
-#pragma GCC optimize ("Og")
+// #define ENABLE_LOGGING 1
+// #pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -753,7 +753,6 @@ void FdcReadDmkTrack(int nDrive, int nSide, int nTrack)
 	FileSeek(g_dtDives[nDrive].f, nTrackOffset);
 	FileRead(g_dtDives[nDrive].f, g_tdTrack.byTrackData, g_dtDives[nDrive].dmk.wTrackLength);
 
-//	g_dtDives[nDrive].dmk.byDensity = eSD;
 	g_tdTrack.byDensity  = g_dtDives[nDrive].dmk.byDensity;
 	g_tdTrack.nDrive     = nDrive;
 	g_tdTrack.nSide      = nSide;
@@ -761,6 +760,36 @@ void FdcReadDmkTrack(int nDrive, int nSide, int nTrack)
 	g_tdTrack.nTrackSize = g_dtDives[nDrive].dmk.wTrackLength;
 
 	FdcFillSectorOffset(&g_tdTrack);
+
+	// For Double denisty
+	// 	bySectorData[SectorOffset-3] should be 0xA1
+	// 	bySectorData[SectorOffset-2] should be 0xA1
+	// 	bySectorData[SectorOffset-1] should be 0xA1
+	// 	bySectorData[SectorOffset]   should be 0xFE
+	// 	bySectorData[SectorOffset+1] is track address (should be the same as the nTrack parameter)
+	// 	bySectorData[SectorOffset+2] side number      (should be the same as the nSide parameter)
+	// 	bySectorData[SectorOffset+3] sector number    (should be the same as the nSector parameter)
+	// 	bySectorData[SectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
+
+	// For Single Density
+	// 	bySectorData[SectorOffset]   should be 0xFE
+	// 	bySectorData[SectorOffset+1] is track address (should be the same as the nTrack parameter)
+	// 	bySectorData[SectorOffset+2] side number      (should be the same as the nSide parameter)
+	// 	bySectorData[SectorOffset+3] sector number    (should be the same as the nSector parameter)
+	// 	bySectorData[SectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
+
+	WORD  wIDAM   = FdcGetIDAM(0);
+	int   nOffset = wIDAM & 0x3FFF;
+	BYTE* pby = g_tdTrack.byTrackData + nOffset;
+
+	if (*(pby-1) == 0xA1)
+	{
+		g_tdTrack.byDensity = eDD;
+	}
+	else
+	{
+		g_tdTrack.byDensity = eSD;
+	}
 }
 /*
 //-----------------------------------------------------------------------------
@@ -1125,7 +1154,7 @@ void FdcReadSector(int nDriveSel, int nSide, int nTrack, int nSector)
 	switch (g_dtDives[nDrive].nDriveFormat)
 	{
 		case eDMK:
-			if (g_FDC.byDoublerEnable)
+			if (g_FDC.byDoublerEnable && (g_tdTrack.byDensity == eDD))
 			{
 				FdcReadDmkSector1791(nDriveSel, nSide, nTrack, nSector);
 			}
