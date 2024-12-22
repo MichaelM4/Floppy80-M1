@@ -453,10 +453,6 @@ void __not_in_flash_func(FdcSetFlag)(byte flag)
 			g_FDC.status.byNotReady = 1;
 			break;
 
-		case eRecordType:
-			g_FDC.status.byRecordType = 1;
-			break;
-
 		case eDataRequest:
 			g_FDC.status.byDataRequest = 1;
 			break;
@@ -504,10 +500,6 @@ void __not_in_flash_func(FdcClrFlag)(byte flag)
 
 		case eNotReady:
 			g_FDC.status.byNotReady = 0;
-			break;
-
-		case eRecordType:
-			g_FDC.status.byRecordType = 0;
 			break;
 
 		case eDataRequest:
@@ -920,7 +912,6 @@ int FdcReadDmkSector1771(int nDriveSel, int nSide, int nTrack, int nSector)
 	if (FdcGetIDAM_Offset(g_tdTrack.nIDAM[nSector]) <= 0)
 	{
 		g_stSector.nSectorDataOffset = 0; // then there is a problem and we will let the Z80 deal with it
-		FdcClrFlag(eRecordType);
 		FdcSetFlag(eNotFound);
 		return FDC_SECTOR_NOT_FOUND;
 	}
@@ -963,7 +954,6 @@ int FdcReadDmkSector1771(int nDriveSel, int nSide, int nTrack, int nSector)
 	if (nDataOffset < 0)
 	{
 		g_stSector.nSectorDataOffset = 0; // then there is a problem and we will let the Z80 deal with it
-		FdcClrFlag(eRecordType);
 		FdcSetFlag(eNotFound);
 		return FDC_SECTOR_NOT_FOUND;
 	}
@@ -1047,7 +1037,6 @@ void FdcReadDmkSector1791(int nDriveSel, int nSide, int nTrack, int nSector)
 	if (FdcGetIDAM_Offset(g_tdTrack.nIDAM[nSector]) <= 0)
 	{
 		g_stSector.nSectorDataOffset = 0; // then there is a problem and we will let the Z80 deal with it
-		FdcClrFlag(eRecordType);
 		FdcSetFlag(eNotFound);
 		return;
 	}
@@ -1075,7 +1064,6 @@ void FdcReadDmkSector1791(int nDriveSel, int nSide, int nTrack, int nSector)
 	if (nDataOffset < 0)
 	{
 		g_stSector.nSectorDataOffset = 0; // then there is a problem and we will let the Z80 deal with it
-		FdcClrFlag(eRecordType);
 		FdcSetFlag(eNotFound);
 		return;
 	}
@@ -1784,18 +1772,26 @@ void FdcProcessReadSectorCommand(void)
 //-----------------------------------------------------------------------------
 // Command code 1 0 1 m b E a1 a0
 //
-// m  = 0 - single record read; 1 - multiple record read;
-// b  = 0 - Non-IBM format; 1 - IDM format;
-// E  = 0 - no delay; 1 - 15 ms delay;
-// a1/a0 = 00 - 0xFB (Data Mark); 01 - 0xFA (user defined); 10 - 0xF9 (use defined); 11 - 0xF8 (Deleted Data Mark);
+// m = 0 - single record read;
+//     1 - multiple record read;
+// b = 0 - Non-IBM format;
+//     1 - IDM format;
+// E = 0 - no delay;
+//     1 - 15 ms delay;
+// a1/a0 = 00 - 0xFB (Data Mark);
+//         01 - 0xFA (user defined);
+//         10 - 0xF9 (use defined);
+//         11 - 0xF8 (Deleted Data Mark);
 //
 void FdcProcessWriteSectorCommand(void)
 {
 	int nSide  = FdcGetSide(g_FDC.byDriveSel);
 	int nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+	uint8_t address_mark[] = {0xFB, 0xFA, 0xF9, 0xF8};
 
 	g_FDC.byCommandType = 2;
-	FdcSetRecordType(0xFB);
+	FdcSetRecordType(address_mark[g_FDC.byCurCommand & 0x03]);
+	g_stSector.bySectorDataAddressMark = address_mark[g_FDC.byCurCommand & 0x03];
 
 	// read specified sector so that it can be modified
 	FdcReadSector(g_FDC.byDriveSel, nSide, g_FDC.byTrack, g_FDC.bySector);
@@ -1809,18 +1805,8 @@ void FdcProcessWriteSectorCommand(void)
 	g_tdTrack.pbyWritePtr  = g_tdTrack.byTrackData + g_stSector.nSectorDataOffset;
 	g_tdTrack.nWriteCount  = g_stSector.nSectorSize;
 	g_tdTrack.nWriteSize   = g_stSector.nSectorSize;	// number of byte to be transfered to the computer before
-															// setting the Data Address Mark status bit (1 if Deleted Data)
+														// setting the Data Address Mark status bit (1 if Deleted Data)
 	g_FDC.nServiceState    = 0;
-
-	if ((g_FDC.byCurCommand & 0x01) == 0)
-	{
-		g_stSector.bySectorDataAddressMark = 0xFB;
-	}
-	else
-	{
-		g_stSector.bySectorDataAddressMark = 0xF8;
-	}
-
 	g_FDC.nProcessFunction = psWriteSector;
 
 	// Note: computer now writes the data register for each of the sector data bytes.
@@ -2249,11 +2235,6 @@ void FdcServiceWriteSector(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			if (g_FDC.dwStateTimer < 1000)
-			{
-				break;
-			}
-
 			// indicate to the Z80 that we are ready for the first data byte
 			FdcGenerateDRQ();
 			++g_FDC.nServiceState;
@@ -2331,6 +2312,7 @@ void FdcProcessTrackData1771(TrackType* ptdTrack)
 				*pbyDst = wCRC16 & 0xFF;
 				break;
 
+			case 0xFA:
 			case 0xFB:
 				if (ptdTrack->byDensity == eSD) // single density
 				{
