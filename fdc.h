@@ -320,7 +320,7 @@ typedef struct {
 
 	int   nProcessFunction;
 	int   nServiceState;
-	DWORD dwStateTimer;
+	DWORD nStateTimer;
 
 	BYTE  bySdCardPresent;
 	

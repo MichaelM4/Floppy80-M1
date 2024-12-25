@@ -3,18 +3,30 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include "hardware/gpio.h"
-#include "pico/stdlib.h"
+#ifndef MFC
+	#include "hardware/gpio.h"
+	#include "pico/stdlib.h"
+	#include "sd_core.h"
+#endif
 
 #include "defines.h"
 #include "file.h"
 #include "system.h"
 #include "crc.h"
 #include "fdc.h"
-#include "sd_core.h"
 
 // #define ENABLE_LOGGING 1
 // #pragma GCC optimize ("Og")
+
+#ifdef MFC
+	#include "z80emu.h"
+
+	extern CpuType cpu;
+	extern int     g_nModel;
+	extern byte    g_byMemory[0x10000];
+
+	#define __not_in_flash_func(x) x
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -177,10 +189,11 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char* g_pszVersion = {"0.1.1"};
+FdcType      g_FDC;
+FdcDriveType g_dtDives[MAX_DRIVES];
 
-static FdcType       g_FDC;
-static FdcDriveType  g_dtDives[MAX_DRIVES];
+static char* g_pszVersion = {(char*)"0.1.1"};
+
 static TrackType     g_tdTrack;
 static SectorType    g_stSector;
 
@@ -189,16 +202,18 @@ static char          g_szBootConfig[80];
 static BufferType    g_bFdcRequest;
 static BufferType    g_bFdcResponse;
 
-static DIR           g_dj;				// Directory object
-static FILINFO       g_fno;				// File information
+#ifndef MFC
+	static DIR           g_dj;				// Directory object
+	static FILINFO       g_fno;				// File information
 
-static char          g_szFindFilter[80];
+	static char          g_szFindFilter[80];
 
-#define FIND_MAX_SIZE 100
+	#define FIND_MAX_SIZE 100
 
-static FILINFO g_fiFindResults[FIND_MAX_SIZE];
-static int     g_nFindIndex;
-static int     g_nFindCount;
+	static FILINFO g_fiFindResults[FIND_MAX_SIZE];
+	static int     g_nFindIndex;
+	static int     g_nFindCount;
+#endif
 
 static BYTE    g_byTrackBuffer[MAX_TRACK_SIZE];
 
@@ -213,7 +228,7 @@ static byte     byCommandTypes[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 4, 3,
 
 //-----------------------------------------------------------------------------
 
-volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
+volatile BYTE	  g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
 										// of any command and is reset when the computer reads or writes to/from the DR.
 										//
 										// when 1 => command has been completed;
@@ -221,8 +236,17 @@ volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simu
 										//
 										// when enabled via the corresponding bit of byNmiMaskReg the NMI output is the inverted state of byIntrReq
 
-volatile int32_t g_nRotationCount;
-volatile DWORD   g_dwMotorOnTimer;
+#ifdef MFC
+	volatile int64_t  g_nRotationCount;
+	volatile uint64_t g_nMotorOnTimer;
+	volatile byte     g_byFdcIntrActive;
+	volatile byte     g_byEnableIntr;
+	volatile byte     g_bStopFdc;
+#else
+	volatile int32_t  g_nRotationCount;
+	volatile uint32_t g_nMotorOnTimer;
+#endif
+
 volatile uint8_t g_byBootConfigModified;
 
 //-----------------------------------------------------------------------------
@@ -1371,7 +1395,7 @@ void FdcInit(void)
 	g_nTimeNow       = time_us_64();
 	g_nPrevTime      = g_nTimeNow;
 	g_byMotorWasOn   = 0;
-	g_dwMotorOnTimer = 0;
+	g_nMotorOnTimer  = 0;
 	g_dwRotationTime = 200000;	// 200ms
 	g_dwIndexTime    = 2800;	// 2.8ms
 	g_nRotationCount = 0;
@@ -1520,7 +1544,7 @@ void FdcProcessSeekCommand(void)
 	{
 		FdcSetFlag(eSeekError);
 		FdcClrFlag(eBusy);
-		g_FDC.dwStateTimer = 0;
+		g_FDC.nStateTimer = 0;
 		g_FDC.nProcessFunction = psSeek;
 		return;
 	}
@@ -1541,7 +1565,7 @@ void FdcProcessSeekCommand(void)
 	g_FDC.byTrack = g_FDC.byData;
 	FdcClrFlag(eSeekError);
 	FdcSetFlag(eBusy);
-	g_FDC.dwStateTimer = 0;
+	g_FDC.nStateTimer = 0;
 	g_FDC.nProcessFunction = psSeek;
 }
 
@@ -1749,7 +1773,7 @@ void FdcProcessReadSectorCommand(void)
 		return;
 	}		
 	
-	g_FDC.dwStateTimer = 0;
+	g_FDC.nStateTimer = 0;
 
 	FdcClrFlag(eDataRequest);
 	FdcSetFlag(eHeadLoaded);
@@ -1843,7 +1867,7 @@ void FdcProcessReadAddressCommand(void)
 	g_tdTrack.nReadSize  = 6;
 	g_tdTrack.nReadCount = 6;
 
-	g_FDC.dwStateTimer = 0;
+	g_FDC.nStateTimer = 0;
 	FdcClrFlag(eDataRequest);
 
 	// number of byte to be transfered to the computer before
@@ -2053,19 +2077,19 @@ void FdcServiceReadSector(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
 		case 1: // give host time to get ready for data
-			if (g_FDC.dwStateTimer < 1000) // 1ms
+			if (g_FDC.nStateTimer < 1000) // 1ms
 			{
 				break;
 			}
 
 			FdcSetRecordType(g_FDC.byRecordMark);
 			FdcGenerateDRQ();
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
@@ -2089,19 +2113,19 @@ void FdcServiceReadTrack(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
 		case 1: // give host time to get ready for data
-			if (g_FDC.dwStateTimer < 1000) // 1ms
+			if (g_FDC.nStateTimer < 1000) // 1ms
 			{
 				break;
 			}
 
 			FdcSetRecordType(g_FDC.byRecordMark);
 			FdcGenerateDRQ();
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
@@ -2265,11 +2289,11 @@ void FdcServiceWriteSector(void)
 			WriteSectorData(g_stSector.nSector);
 		
 			++g_FDC.nServiceState;
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			break;
 		
 		case 2:
-			if (g_FDC.dwStateTimer < 1000)
+			if (g_FDC.nStateTimer < 1000)
 			{
 				break;
 			}
@@ -2526,7 +2550,7 @@ void FdcServiceWriteTrack(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			if (g_FDC.dwStateTimer < 1000)
+			if (g_FDC.nStateTimer < 1000)
 			{
 				break;
 			}
@@ -2558,12 +2582,12 @@ void FdcServiceWriteTrack(void)
 			// flush track to SD-Card
 			FdcWriteTrack(&g_tdTrack);
 		
-			g_FDC.dwStateTimer = 0;
+			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
 		case 2:
-			if (g_FDC.dwStateTimer < 1000)
+			if (g_FDC.nStateTimer < 1000)
 			{
 				break;
 			}
@@ -2577,7 +2601,7 @@ void FdcServiceWriteTrack(void)
 //-----------------------------------------------------------------------------
 void FdcServiceSeek(void)
 {
-	if (g_FDC.dwStateTimer < 1000) // 1ms
+	if (g_FDC.nStateTimer < 1000) // 1ms
 	{
 		return;
 	}
@@ -2590,7 +2614,7 @@ void FdcServiceSeek(void)
 //-----------------------------------------------------------------------------
 void SetResponseLength(BufferType* bResponse)
 {
-	int i = strlen((char*)(bResponse->buf));
+	int i = (int)strlen((char*)(bResponse->buf));
 
 	bResponse->cmd[0] = i & 0xFF;
 	bResponse->cmd[1] = (i >> 8) & 0xFF;
@@ -2605,37 +2629,36 @@ void FdcProcessStatusRequest(byte print)
 	
 	if (print)
 	{
-		strcpy(szLineEnd, "\r\n");
+		strcpy_s(szLineEnd, sizeof(szLineEnd)-1, (char*)"\r\n");
 	}
 	else
 	{
-		strcpy(szLineEnd, "\r");
+		strcpy_s(szLineEnd, sizeof(szLineEnd)-1, (char*)"\r");
 	}
 
     memset(&g_bFdcResponse, 0, sizeof(g_bFdcResponse));
 
-	strcpy((char*)(g_bFdcResponse.buf), "Pico FDC Version ");
-	strcat((char*)(g_bFdcResponse.buf), g_pszVersion);
-	strcat((char*)(g_bFdcResponse.buf), szLineEnd);
-	strcat((char*)(g_bFdcResponse.buf), "BootIni=");
-	strcat((char*)(g_bFdcResponse.buf), g_szBootConfig);
-	strcat((char*)(g_bFdcResponse.buf), szLineEnd);
+	strcpy_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Pico FDC Version ");
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_pszVersion);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"BootIni=");
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_szBootConfig);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 
 	if (g_byBootConfigModified)
 	{
 		file* f;
-		char* psz;
 		int   nLen;
 
 		f = FileOpen(g_szBootConfig, FA_READ);
 		
 		if (f == NULL)
 		{
-			strcat((char*)(g_bFdcResponse.buf), "Unable to open specified ini file");
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Unable to open specified ini file");
 		}
 		else
 		{
-			nLen = FileReadLine(f, (BYTE*)szBuf, sizeof(szBuf)-2);
+			nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
 			
 			while (nLen >= 0)
 			{
@@ -2645,7 +2668,7 @@ void FdcProcessStatusRequest(byte print)
 					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 				}
 
-				nLen = FileReadLine(f, (BYTE*)szBuf, sizeof(szBuf)-2);
+				nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
 			}
 			
 			FileClose(f);
@@ -2655,22 +2678,24 @@ void FdcProcessStatusRequest(byte print)
 	{
 		for (i = 0; i < MAX_DRIVES; ++i)
 		{
-			sprintf(szBuf, "%d: ", i);
-			strcat((char*)(g_bFdcResponse.buf), szBuf);
-			strcat((char*)(g_bFdcResponse.buf), g_dtDives[i].szFileName);
-			strcat((char*)(g_bFdcResponse.buf), szLineEnd);
+			sprintf_s(szBuf, sizeof(szBuf)-1, "%d: ", i);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szBuf);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_dtDives[i].szFileName);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 		}
 	}
 
 	if (print)
 	{
-		puts(g_bFdcResponse.buf);
+		puts((char*)g_bFdcResponse.buf);
 	}
 	else
 	{
 		SetResponseLength(&g_bFdcResponse);
 	}
 }
+
+#ifndef MFC
 
 //-----------------------------------------------------------------------------
 int FdcFileListCmp(const void * a, const void * b)
@@ -2991,6 +3016,7 @@ void FdcProcessRequest(void)
             break;
     }
 }
+#endif
 
 //-----------------------------------------------------------------------------
 void FdcUpdateCounters(void)
@@ -3001,11 +3027,11 @@ void FdcUpdateCounters(void)
 	nDiff       = g_nTimeNow - g_nPrevTime;
 	g_nPrevTime = g_nTimeNow;
 
-	if (g_dwMotorOnTimer != 0)
+	if (g_nMotorOnTimer != 0)
 	{
 		g_byMotorWasOn = 1;
 
-		g_dwMotorOnTimer  = CountDown(g_dwMotorOnTimer, nDiff);
+		g_nMotorOnTimer   = CountDown(g_nMotorOnTimer, nDiff);
 		g_nRotationCount += nDiff;
 
 		// (g_dwTimerFrequency / 5) = count to make one full rotation of the diskette (200 ms at 300 RPM)
@@ -3035,7 +3061,7 @@ void FdcUpdateCounters(void)
 		}
 	}
 
-	g_FDC.dwStateTimer = CountUp(g_FDC.dwStateTimer, nDiff);
+	g_FDC.nStateTimer = CountUp(g_FDC.nStateTimer, nDiff);
 }
 
 //-----------------------------------------------------------------------------
@@ -3295,6 +3321,29 @@ void __not_in_flash_func(fdc_write_data)(byte byData)
 }
 
 //-----------------------------------------------------------------------------
+void __not_in_flash_func(fdc_write)(word addr, byte data)
+{
+    switch (addr)
+    {
+        case 0x37EC:
+            fdc_write_cmd(data);
+			break;
+
+        case 0x37ED:
+            fdc_write_track(data);
+			break;
+
+        case 0x37EE:
+            fdc_write_sector(data);
+			break;
+
+        case 0x37EF:
+            fdc_write_data(data);
+			break;
+    }
+}
+
+//-----------------------------------------------------------------------------
 void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byStatus)
 {
 	int nDrive;
@@ -3306,7 +3355,7 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 
 	if ((nDrive < 0) || (g_dtDives[nDrive].f == NULL))
 	{
-		strcat_s(buf, sizeof(buf)-1, "F_NOTREADY|F_HEADLOAD");
+		strcat_s(buf, sizeof(buf)-1, (char*)"F_NOTREADY|F_HEADLOAD");
 	}
 	else if ((g_FDC.byCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
              (g_FDC.byCommandType == 4))   // Force Interrupt
@@ -3314,48 +3363,48 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 		// S0 (BUSY)
 		if (byStatus & F_BUSY)
 		{
-			strcat_s(buf, nMaxLen, "F_BUSY|");
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
 		}
 		
 		// S1 (INDEX) default to 0
 		if (byStatus & F_INDEX)
 		{
-			strcat_s(buf, nMaxLen, "F_INDEX|");
+			strcat_s(buf, nMaxLen, (char*)"F_INDEX|");
 		}
 
 		// S2 (TRACK 0) default to 0
 		if (byStatus & F_TRACK0)
 		{
-			strcat_s(buf, nMaxLen, "F_TRACK0|");
+			strcat_s(buf, nMaxLen, (char*)"F_TRACK0|");
 		}
 
 		// S3 (CRC ERROR) default to 0
 		if (byStatus & F_CRCERR)
 		{
-			strcat_s(buf, nMaxLen, "F_CRCERR|");
+			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
 		}
 
 		// S4 (SEEK ERROR) default to 0
 		if (byStatus & F_SEEKERR)
 		{
-			strcat_s(buf, nMaxLen, "F_SEEKERR|");
+			strcat_s(buf, nMaxLen, (char*)"F_SEEKERR|");
 		}
 		
 		if (byStatus & F_HEADLOAD)
 		{
-			strcat_s(buf, nMaxLen, "F_HEADLOAD|");
+			strcat_s(buf, nMaxLen, (char*)"F_HEADLOAD|");
 		}
 
 		// S6 (PROTECTED) default to 0
 		if (byStatus & F_PROTECTED)
 		{
-			strcat_s(buf, nMaxLen, "F_PROTECTED|");
+			strcat_s(buf, nMaxLen, (char*)"F_PROTECTED|");
 		}
 		
 		// S7 (NOT READY) default to 0
 		if (byStatus & F_NOTREADY)
 		{
-			strcat_s(buf, nMaxLen, "F_NOTREADY|");
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
 		}
 	}
 	else if ((g_FDC.byCommandType == 2) ||	// Read Sector, Write Sector
@@ -3364,49 +3413,49 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 		// S0 (BUSY)
 		if (byStatus & F_BUSY)
 		{
-			strcat_s(buf, nMaxLen, "F_BUSY|");
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
 		}
 	
 		// S1 (DATA REQUEST)     default to 0
 		if (byStatus & F_DRQ)
 		{
-			strcat_s(buf, nMaxLen, "F_DRQ|");
+			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
 		}
 
 		// S2 (LOST DATA)        default to 0
 		if (byStatus & F_LOSTDATA)
 		{
-			strcat_s(buf, nMaxLen, "F_LOSTDATA|");
+			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
 		}
 		
 		// S3 (CRC ERROR)        default to 0
 		if (byStatus & F_CRCERR)
 		{
-			strcat_s(buf, nMaxLen, "F_CRCERR|");
+			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
 		}
 		
 		// S4 (RECORD NOT FOUND) default to 0
 		if (byStatus & F_NOTFOUND)
 		{
-			strcat_s(buf, nMaxLen, "F_NOTFOUND|");
+			strcat_s(buf, nMaxLen, (char*)"F_NOTFOUND|");
 		}
 	
 		// S5 (RECORD TYPE) default to 0
 		if (byStatus & F_DELETED)
 		{
-			strcat_s(buf, nMaxLen, "F_DELETED|");
+			strcat_s(buf, nMaxLen, (char*)"F_DELETED|");
 		}
 
 		// S6 (PROTECTED) default to 0
 		if (byStatus & F_PROTECT)
 		{
-			strcat_s(buf, nMaxLen, "F_PROTECT|");
+			strcat_s(buf, nMaxLen, (char*)"F_PROTECT|");
 		}
 
 		// S7 (NOT READY) default to 0
 		if (byStatus & F_NOTREADY)
 		{
-			strcat_s(buf, nMaxLen, "F_NOTREADY|");
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
 		}
 	}
 	else // Force Interrupt
@@ -3531,6 +3580,27 @@ byte __not_in_flash_func(fdc_read_data)(void)
 }
 
 //-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_read)(uint16_t addr)
+{
+    switch (addr)
+    {
+        case 0x37EC:
+            return fdc_read_status();
+
+        case 0x37ED:
+            return fdc_read_track();
+
+        case 0x37EE:
+            return fdc_read_sector();
+
+        case 0x37EF:
+            return fdc_read_data();
+    }
+
+	return 0;
+}
+
+//-----------------------------------------------------------------------------
 // B0 - Drive select 1
 // B1 - Drive select 2
 // B2 - Drive select 3
@@ -3549,7 +3619,7 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 #endif
 
 	g_FDC.byDriveSel = byData;
-	g_dwMotorOnTimer = 2000000;
+	g_nMotorOnTimer  = 2000000;
 }
 
 //-----------------------------------------------------------------------------
