@@ -108,6 +108,7 @@ enum {
 	psOpenFile,
 	psWriteFile,
 	psSetTime,
+	psRestore,
 };
 
 enum {
