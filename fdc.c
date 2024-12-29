@@ -1980,27 +1980,30 @@ void FdcProcessReadTrackCommand(void)
 //
 void FdcProcessWriteTrackCommand(void)
 {
-	int nSide = FdcGetSide(g_FDC.byDriveSel);
+	word nWriteSize;
+	int  nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 3;
 	FdcSetFlag(eHeadLoaded);
-	
+
 	memset(g_tdTrack.byTrackData+0x80, 0, sizeof(g_tdTrack.byTrackData)-0x80);
 
 	if (g_FDC.byDoublerDensity)
 	{
 		g_tdTrack.byDensity = eDD;
+		nWriteSize = 6214;
 	}
 	else
 	{
 		g_tdTrack.byDensity = eSD;
+		nWriteSize = 3105;
 	}
 
 	g_tdTrack.nDrive       = FdcGetDriveIndex(g_FDC.byDriveSel);
 	g_tdTrack.nSide        = nSide;
 	g_tdTrack.nTrack       = g_FDC.byTrack;
 	g_tdTrack.pbyWritePtr  = g_tdTrack.byTrackData + 0x80;
-	g_tdTrack.nWriteSize   = g_dtDives[g_tdTrack.nDrive].dmk.wTrackLength;
+	g_tdTrack.nWriteSize   = nWriteSize;
 	g_tdTrack.nWriteCount  = g_tdTrack.nWriteSize;
 	g_FDC.nServiceState    = 0;
 	g_FDC.nProcessFunction = psWriteTrack;

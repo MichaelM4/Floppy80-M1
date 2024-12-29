@@ -8,10 +8,12 @@ Lifeboat CPM 1.4.1    Yes      Yes     Yes    Yes
 MultiDOS 4.01         Yes      No      Yes    Yes
 NEWDOS 3.0            Yes      No      Yes    Yes
 NEWDOS 80 V2.0        Yes      No      Yes    Yes
-TRSDOS 2.3            Yes      No      Yes    Yes
+TRSDOS 2.3            Yes      Yes'    Yes    Yes
 UltraDOS 4.2.0        Yes      No      Yes    Yes
 VTDOS 3.0.0           Yes      No      Yes    Yes
 VTDOS 4.0.1           Yes      Yes     Yes    Yes
+
+Yes' - format works with custom version of the TRSDOS FORMAT/CMD program.
 
 Format Drive
 --------------------
@@ -36,6 +38,9 @@ Format Drive
 - VTDOS 3.0.0
   Can read TRSDOS 2.3 disks
   Can read LDOS 5.3.1 (35S1 and 90S2) disks
+
+- LDOS 5.3.1
+  When formatting a drive start with a dmk image that is of the same configuration.
 
 Copy File
 --------------------
