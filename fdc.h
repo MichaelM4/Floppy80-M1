@@ -267,9 +267,9 @@ typedef struct {
 	// address sepecified by A0 and A1 inputs
 	BYTE  byCommandReg;				// WR address 0
 
-	BYTE  byTrack;						// RD/WR address 1
-	BYTE  bySector;						// RD/WR address 2
-	BYTE  byData;							// RD/WR address 3
+	BYTE  byTrack;					// RD/WR address 1
+	BYTE  bySector;					// RD/WR address 2
+	BYTE  byData;					// RD/WR address 3
 
 	FDC_StatusType status;
 	BYTE  byStatus;
@@ -281,7 +281,7 @@ typedef struct {
 
 	short nStepDir;					// 1 = increase track reg on each step; -1 = decrease track reg on each step;
 	
-	// RD/WR when DRIVESEL is low
+	// WR when DRIVESEL is low
 	BYTE  byDriveSel;				// Bit 0 = drive select 1;
 									// Bit 1 = drive select 2;
 									// Bit 2 = drive select 3;
@@ -304,19 +304,19 @@ typedef struct {
 
 	BYTE  byRecordMark;
 							
-	BYTE  byIntrEnable;		// set by a Force Interrupt command
-							// bit-0 = generate interrupt on Not-Ready to Ready transition;
-							// bit-1 = generate interrupt on Ready to Not-Ready transition;
-							// bit-2 = at every index pulse;
-							// bit-3 = Imediate interrupt;
+	BYTE  byIntrEnable;				// set by a Force Interrupt command
+									// bit-0 = generate interrupt on Not-Ready to Ready transition;
+									// bit-1 = generate interrupt on Ready to Not-Ready transition;
+									// bit-2 = at every index pulse;
+									// bit-3 = Imediate interrupt;
 
 	BYTE  byHoldWaitOnDataWrite;
 	BYTE  byReleaseWait;
-	BYTE  byWaitOutput;		// when 1 => wait line is being held low;
-							//      0 => wait line is released;
+	BYTE  byWaitOutput;				// when 1 => wait line is being held low;
+									//      0 => wait line is released;
 
-	DWORD dwResetCount;		// increments when the FDC RESET input is low, is set to zero when FDC RESET is high
-							// this can be used to determine if the FDC has received a RESET pulse
+	DWORD dwResetCount;				// increments when the FDC RESET input is low, is set to zero when FDC RESET is high
+									// this can be used to determine if the FDC has received a RESET pulse
 	BYTE  byResetFDC;
 
 	int   nProcessFunction;
@@ -358,6 +358,7 @@ typedef struct {
 
 /* ==============================================================*/
 
+extern volatile byte  g_byDriveStatus;
 extern volatile BYTE  g_byIntrRequest;
 
 /* function prototypes ==========================================*/
