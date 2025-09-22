@@ -229,6 +229,7 @@ static char     g_szRwBuf[256];
 static byte     byCommandTypes[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 4, 3, 3};
 
 //-----------------------------------------------------------------------------
+volatile byte   g_byDriveStatus;
 
 volatile BYTE	g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
 										// of any command and is reset when the computer reads or writes to/from the DR.
@@ -311,6 +312,18 @@ void __not_in_flash_func(FdcUpdateStatus)(void)
 	BYTE byStatus = 0;
 	BYTE byCmd;
 	int  nDrive;
+
+	g_byDriveStatus = 0x3F;
+
+	if (g_byIntrRequest)
+	{
+		g_byDriveStatus |= 0x40;
+	}
+
+	if (g_byRtcIntrActive)
+	{
+		g_byDriveStatus |= 0x80;
+	}
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
