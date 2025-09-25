@@ -2993,6 +2993,8 @@ void FdcFormatDrive(void)
 
 	size = g_fno.fsize;
 
+ 	gpio_put(LED_PIN, 0);
+
 	while (size > 0)
 	{
 		read = sizeof(g_byTrackBuffer);
@@ -3006,6 +3008,8 @@ void FdcFormatDrive(void)
 		FileWrite(g_dtDives[drive].f, g_byTrackBuffer, read);
 		size -= read;
 	}
+
+ 	gpio_put(LED_PIN, 1);
 
 	FileClose(f);
 	FileClose(g_dtDives[drive].f);
