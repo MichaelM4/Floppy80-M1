@@ -2572,6 +2572,37 @@ void FdcWriteDmkTrack(TrackType* ptdTrack)
 		FileWrite(g_dtDives[ptdTrack->nDrive].f, g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader, sizeof(g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader));
 	}
 
+	// TODO: check if the disk header (number of sides) needs to be updated
+	// if ((g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader[4] & 0x10) != 0)
+	// {
+	// 	g_dtDives[ptdTrack->nDrive].dmk.byNumSides = 1;
+	// }
+	// else
+	// {
+	// 	g_dtDives[ptdTrack->nDrive].dmk.byNumSides = 2;
+	// }
+
+	// check if the disk header (density) needs to be updated
+	if (ptdTrack->byDensity != g_dtDives[ptdTrack->nDrive].dmk.byDensity)
+	{
+		// clear the ignore density bit
+		g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader[4] &= 0xEF;
+
+		if (ptdTrack->byDensity == eSD)
+		{
+			g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader[4] |= 0x40;
+		}
+		else
+		{
+			g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader[4] &= 0xBF;
+		}
+
+		g_dtDives[ptdTrack->nDrive].dmk.byDensity = ptdTrack->byDensity;
+
+		FileSeek(g_dtDives[ptdTrack->nDrive].f, 0);
+		FileWrite(g_dtDives[ptdTrack->nDrive].f, g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader, sizeof(g_dtDives[ptdTrack->nDrive].dmk.byDmkDiskHeader));
+	}
+
 	ptdTrack->nFileOffset = FdcGetTrackOffset(ptdTrack->nDrive, ptdTrack->nSide, ptdTrack->nTrack);
 
 	FileSeek(g_dtDives[ptdTrack->nDrive].f, ptdTrack->nFileOffset);
