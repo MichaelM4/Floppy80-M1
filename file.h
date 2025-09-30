@@ -60,6 +60,7 @@ BYTE     FileIsOpen(file *fp);
 uint32_t FileRead(file* fp, BYTE* pby, uint32_t nSize);
 uint32_t FileWrite(file* fp, BYTE* pby, uint32_t nSize);
 void     FileSeek(file* fp, int nOffset);
+void     FileTruncate(file* fp);
 void     FileFlush(file* fp);
 void     FileCloseAll(void);
 void     FileSystemInit(void);
