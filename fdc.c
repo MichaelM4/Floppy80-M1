@@ -1096,6 +1096,8 @@ void FdcReadDmkSector1791(int nDriveSel, int nSide, int nTrack, int nSector)
 	WORD  wCalcCRC16;
 	int   nDrive, nDataOffset;
 
+	g_FDC.nDataSize = 1;
+
 	nDrive = FdcGetDriveIndex(nDriveSel);
 	
 	if (nDrive < 0)
@@ -1232,10 +1234,21 @@ void FdcReadSector(int nDriveSel, int nSide, int nTrack, int nSector)
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
 
+	if ((nDrive == 2) && (nTrack == 1))
+	{
+		drive = nDrive;
+		side = nSide;
+		track = nTrack;
+		sector = nSector;
+	}
+
+	FdcReadTrack(nDrive, nSide, nTrack);
+
 	switch (g_dtDives[nDrive].nDriveFormat)
 	{
 		case eDMK:
-			if (g_FDC.byDoublerEnable && (g_tdTrack.byDensity == eDD))
+			// if (g_FDC.byDoublerEnable && (g_tdTrack.byDensity == eDD))
+			if (g_tdTrack.byDensity == eDD)
 			{
 				FdcReadDmkSector1791(nDriveSel, nSide, nTrack, nSector);
 			}
