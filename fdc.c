@@ -2149,6 +2149,8 @@ void FdcProcessCommand(void)
 //-----------------------------------------------------------------------------
 void FdcServiceReadSector(void)
 {
+	static uint64_t drq_time;
+
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
@@ -2162,12 +2164,31 @@ void FdcServiceReadSector(void)
 				break;
 			}
 
+			drq_time = time_us_64();
+			g_FDC.byReadData = 1;
+
 			FdcGenerateDRQ();
 			g_FDC.nStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
 		case 2:
+			if (g_FDC.byReadData)
+			{
+				if ((time_us_64() - drq_time) > 1000)
+				{
+					FdcClrFlag(eBusy);
+					FdcSetFlag(eDataLost);
+					g_FDC.nProcessFunction = psIdle;
+					break;
+				}
+			}
+			else
+			{
+				drq_time = time_us_64();
+				g_FDC.byReadData = 1;
+			}
+
 			if (g_tdTrack.nReadCount > 0)
 			{
 				break;
@@ -3524,6 +3545,8 @@ byte __not_in_flash_func(fdc_read_sector)(void)
 //-----------------------------------------------------------------------------
 byte __not_in_flash_func(fdc_read_data)(void)
 {
+	g_FDC.byReadData = 0;
+
 	if (g_tdTrack.nReadCount > 0)
 	{
 		g_FDC.byData = *g_tdTrack.pbyReadPtr;
