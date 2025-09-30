@@ -64,14 +64,14 @@ void ListFiles(char* pszFilter)
 
     			if (nCol < 5)
 				{
-                    printf("%30s", fno.fname);
+                    printf("%30s %7d", fno.fname, fno.fsize);
                 }
                 else
                 {
-                    printf("%30s\r\n", fno.fname);
+                    printf("%30s %7d\r\n", fno.fname, fno.fsize);
                     nCol = 0;
                 }
-			}
+            }
 		}
 
 		if (fno.fname[0] != 0)
