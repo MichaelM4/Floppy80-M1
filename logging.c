@@ -89,7 +89,8 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 	}
 	else if ((byCmd & 0xF0) == 0x80) // 1000xxxx
 	{
-		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X TRK: %02X RSEC: %02X", byCmd, FdcGetDriveIndex(g_nDriveSel), op1, op2);
+		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X S: %d TRK: %02X RSEC: %02X",
+				  byCmd, FdcGetDriveIndex(g_nDriveSel), FdcGetSide(g_nDriveSel), op1, op2);
 		g_nCommandType = 2;
 	}
 	else if ((byCmd & 0xF0) == 0x90) // 1001xxxx
@@ -99,7 +100,8 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 	}
 	else if ((byCmd & 0xF0) == 0xA0) // 1010xxxx
 	{
-		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X TRK: %02X WSEC: %02X ", byCmd, FdcGetDriveIndex(g_nDriveSel), op1, op2);
+		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X S: %d TRK: %02X WSEC: %02X ",
+				  byCmd, FdcGetDriveIndex(g_nDriveSel), FdcGetSide(g_nDriveSel), op1, op2);
 		g_nCommandType = 2;
 	}
 	else if ((byCmd & 0xF0) == 0xB0) // 1011xxxx
@@ -324,7 +326,33 @@ void ServiceFdcLog(void)
 
         case write_sector:
         	PurgeRwBuffer();
-            sprintf_s(buf, sizeof(buf)-1, "WR SECTOR %02X", fdc_log[log_tail].val);
+
+			sprintf_s(buf, sizeof(buf)-1, "WR SECTOR %02X ", fdc_log[log_tail].val);
+
+			if (fdc_log[log_tail].val >= 0xE0)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Precomp = 1");
+			}
+			else if (fdc_log[log_tail].val >= 0xC0)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Precomp = 0");
+			}
+			else if (fdc_log[log_tail].val >= 0xA0)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Enable = 0, Doubler Density = 0");
+			}
+			else if (fdc_log[log_tail].val >= 0x80)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Enable = 1, Doubler Density = 1");
+			}
+			else if (fdc_log[log_tail].val >= 0x60)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Side = 1");
+			}
+			else if (fdc_log[log_tail].val >= 0x40)
+			{
+                strcat_s(buf, sizeof(buf)-1, "Doubler Side = 0");
+			}
 
             #ifdef MFC
                 strcat_s(buf, sizeof(buf)-1, "\r\n");
