@@ -55,7 +55,7 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
 
 - MultiDOS 4.01
   FORMAT
-  - works as long as the disk double code in firmware is disabled
+  - works
 
 - NEWDOS 3.0
   FORMAT

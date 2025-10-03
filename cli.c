@@ -297,6 +297,7 @@ void ServiceCli(void)
         g_bCdcPromptSent = true;
     }
 
+#ifdef ENABLE_LOGGING
     if (g_bOutputLog)
     {
         ServiceFdcLog();
@@ -305,6 +306,7 @@ void ServiceCli(void)
     {
         log_tail = log_head;
     }
+#endif
 
     c = getchar_timeout_us(0);
 

@@ -169,6 +169,12 @@ enum {
 	eHeadLoaded,
 };
 
+enum {
+	eNoDoubler = 0,
+	eRsDoubler,
+	ePcDoubler,
+};
+
 typedef struct {
 	BYTE byBusy;
 	BYTE byIndex;
@@ -324,6 +330,7 @@ typedef struct {
 	int   nTrasferIndex;
 	int   nDataSize;
 
+	BYTE  byDoublerType;
 	BYTE  byDoublerEnable;
 	BYTE  byDoublerSide;
 	BYTE  byDoublerDensity;

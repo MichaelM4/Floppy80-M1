@@ -15,9 +15,7 @@
 #include "crc.h"
 #include "fdc.h"
 
-#define ENABLE_DOUBLER 1
-#define ENABLE_LOGGING 1
-#pragma GCC optimize ("Og")
+// #pragma GCC optimize ("Og")
 
 #ifdef MFC
 	#include "z80emu.h"
@@ -2021,7 +2019,7 @@ void InitDmkDiskHeader(void)
 		return;
 	}
 
-	g_dtDives[nDrive].byNumTracks = 1;
+	g_dtDives[nDrive].byNumTracks = 96;
 	g_dtDives[nDrive].dmk.byDmkDiskHeader[1] = g_dtDives[nDrive].byNumTracks;
 
 	FileClose(g_dtDives[nDrive].f);
@@ -2055,6 +2053,8 @@ void FdcProcessWriteTrackCommand(void)
 		g_tdTrack.byDensity = eSD;
 		nWriteSize = SD_TRACK_LENGTH;
 	}
+
+	// nWriteSize = g_tdTrack.nTrackSize;
 
 	g_tdTrack.nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
@@ -3283,11 +3283,19 @@ void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
 	if (byData == 0xFE) // Percom doubler
 	{
-		g_FDC.byDoublerDensity = 0;
+		if (g_FDC.byDoublerType != eRsDoubler)
+		{
+			g_FDC.byDoublerDensity = 0;
+			g_FDC.byDoublerType = ePcDoubler;
+		}
 	}
 	else if (byData == 0xFF) // Percom doubler
 	{
-		g_FDC.byDoublerDensity = 1;
+		if (g_FDC.byDoublerType != eRsDoubler)
+		{
+			g_FDC.byDoublerDensity = 1;
+			g_FDC.byDoublerType = ePcDoubler;
+		}
 	}
 	else
 	{
@@ -3369,31 +3377,40 @@ void __not_in_flash_func(fdc_write_sector)(byte byData)
 	g_FDC.bySector = byData;
 
 #ifdef ENABLE_DOUBLER
-	if (byData >= 0xE0)
+	if (g_FDC.byDoublerType != ePcDoubler)
 	{
-		g_FDC.byDoublerPrecomp = 1;
-	}
-	else if (byData >= 0xC0)
-	{
-		g_FDC.byDoublerPrecomp = 0;
-	}
-	else if (byData >= 0xA0)
-	{
-		g_FDC.byDoublerEnable  = 0;
-		g_FDC.byDoublerDensity = 0;
-	}
-	else if (byData >= 0x80)
-	{
-		g_FDC.byDoublerEnable  = 1;
-		g_FDC.byDoublerDensity = 1;
-	}
-	else if (byData >= 0x60)
-	{
-		g_FDC.byDoublerSide = 1;
-	}
-	else if (byData >= 0x40)
-	{
-		g_FDC.byDoublerSide = 0;
+		if (byData >= 0xE0)
+		{
+			g_FDC.byDoublerPrecomp = 1;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
+		else if (byData >= 0xC0)
+		{
+			g_FDC.byDoublerPrecomp = 0;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
+		else if (byData >= 0xA0)
+		{
+			g_FDC.byDoublerEnable  = 0;
+			g_FDC.byDoublerDensity = 0;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
+		else if (byData >= 0x80)
+		{
+			g_FDC.byDoublerEnable  = 1;
+			g_FDC.byDoublerDensity = 1;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
+		else if (byData >= 0x60)
+		{
+			g_FDC.byDoublerSide = 1;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
+		else if (byData >= 0x40)
+		{
+			g_FDC.byDoublerSide = 0;
+			g_FDC.byDoublerType = eRsDoubler;
+		}
 	}
 #endif
 
