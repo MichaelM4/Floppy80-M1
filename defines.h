@@ -3,7 +3,7 @@
 #define _H_DEFINES_
 
 #define ENABLE_DOUBLER 1
-// #define ENABLE_LOGGING 1
+#define ENABLE_LOGGING 1
 
 //#pragma GCC optimize ("O0")
 #pragma GCC optimize ("O3")

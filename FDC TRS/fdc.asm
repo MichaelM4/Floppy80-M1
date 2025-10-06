@@ -123,7 +123,18 @@ gotid5:
 	ld	(opcode),a
 	jp	getlist
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; test for FOR command line parmameter
 gotid6:
+	ld	hl,parm1
+	ld	de,DIRstr
+	call	striequ
+	jr	nz,gotid7
+	ld	a,FINDALL_CMD	; find .*
+	ld	(opcode),a
+	jp	getlist
+
+gotid7:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; display FDC usage (help)
@@ -215,10 +226,6 @@ import2:
 	ld	a,13
 	call	putc
 
-	; drive select for host
-	ld	a,0FH
-	out	(0F4H),a
-
 	; send file specification and open mode (r/w)
 	ld	hl,xferbuf
 	call	strlen
@@ -228,30 +235,23 @@ import2:
 
 	; open file command (mode r/w is specified in string)
 	ld	a,OPENFILE_CMD
-	out	(0F0H),a
-
-	call	wait_for_ready	; wait until Floppy-80 has completed the request
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
 
 imploop:
-	; read data from Floppy-80
-	ld	a,0FH		; host drive select
-	out	(0F4H),a
-	ld	a,READFILE_CMD	; read file data
-	out	(0F0H),a
-	
-	ld	hl,xferbuf
-	call	readdata	; contains the address of the buffer to receive the bytes
-				; since up to 255 bytes can be read the buffer must be at
-				; least 255 bytes
-        			;
-		        	; returns: a - contains the number of bytes read
-	or	a
-	jr	z,impdone
+	call	wait_for_ready	; wait until Floppy-80 has completed the request
 
-	; if here we have data in xferbuf to be written (byte count in a)
+	ld	hl,RESPONSE_ADDR
+	ld	a,(hl)
+	or	a
+	jr	z,impdone	; if byte count is zero then we are done
+
+	; data is available in memory at address RESPONSE_ADDR
+	; (RESPONSE_ADDR) is the number of the byte read
+	; (RESPONSE_ADDR+2) is the start of the bytes read
 
 	ld	b,a
-	ld	hl,xferbuf
+	ld	hl,RESPONSE_ADDR+2
 	ld	de,fcb
 	call	fwrite
 
@@ -259,9 +259,19 @@ imploop:
 	ld	a,'.'
 	call	putc
 
+	; request next block of data from file
+	ld	a,READFILE_CMD
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
+
 	jp	imploop
 
 impdone:
+	; close file on controller
+	ld	a,CLOSEFILE_CMD
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
+
 	; all done, close file and exit
 	ld	de,fcb
 	call	fclose
@@ -395,6 +405,11 @@ getlist20:
 	; display file name
 	push	bc
 
+	; if (opcode == FINDALL_CMD) then don't display the select character
+	ld	a,(opcode)
+	cp	FINDALL_CMD
+	jr	z,getlist21
+
 	ld	a,(found)
 	add	a,'0'
 	call	putc
@@ -402,6 +417,7 @@ getlist20:
 	ld	a,' '
 	call	putc
 
+getlist21:
 	; display file name
 	call	print
 
@@ -441,14 +457,32 @@ getnextset:
 	ld	(found),a
 	jp	getnext
 
+getlistexit:
+	jp	exit
+
 getlist30:
 	; test if any entries were found
 	ld	a,(found)
 	or	a
-	jr	z,getlist40
+	jr	z,getlistexit
 
 	; if here then we have at least one entry
 
+	; if (opcode == FINDALL_CMD) then display press any key for next set of files
+	ld	a,(opcode)
+	cp	FINDALL_CMD
+	jr	z,getlist31
+
+	; else continue as normal
+	jp	getlist32
+getlist31:
+
+	ld	hl,prompt_next
+	call	print
+	call	getchar
+	jp	getnextset
+
+getlist32:
 	; initialize drive selection to '0'
 	ld	a,'0'
 	ld	(drive),a
@@ -468,7 +502,7 @@ getlist30:
 	ld	(select),a	; save copy of selection
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	; test if a valid selection
+	; test if acc contains a valid selection
 
 	; if a < '1' then go around again
 	cp	a,'1'
@@ -518,6 +552,10 @@ mount2:	ld	(parm3),a
 	ld	a,(opcode)
 	cp	FINDFMT_CMD
 	jr	z,do_format
+
+	ld	a,(opcode)
+	cp	FINDALL_CMD
+	jr	z,getlist40
 
 	call	mountfile
 	jp	getsta
@@ -1208,17 +1246,17 @@ exit:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 intro:
-		ascii	'Model I FDC utility version 0.0.9',13
+		ascii	'Model I FDC utility version 0.1.0',13
 		ascii	'Command line options:',13
 		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13
 ;		ascii	'GET - set TRS-80 date and time to the FDC date and time.',13
-;		ascii	'DIR - get a directory listing of the FDC SD-Card root folder.',13
+		ascii	'DIR - get a directory listing of the FDC SD-Card root folder.',13
 		ascii	'INI - select the default ini file.    FDC INI filename.ext',13
 		ascii	'DMK - mount a DMK disk image.         FDC DMK filename.ext n',13
 		ascii	'FOR - format DMK disk image.',13
 ;		ascii	'HFE - mount a HFE disk image.         FDC HFE filename.ext n',13
-;		ascii   'IMP - import a file from the SD-Card. FDC IMP filename/ext:n',13
+		ascii   'IMP - import a file from the SD-Card. FDC IMP filename/ext:n',13
 ;		ascii	'EXP - export a file to the SD-card.   FDC EXP filename/ext:n',13
 		ascii	' ',13
 		ascii	'      filename.ext - is the filename and extension.',13
@@ -1247,6 +1285,8 @@ prompt_part2:	ascii	' to select the desired file.',13
 		ascii	'Press any other key for next set of files.',13,0
 prompt_drive:	ascii	'Specify drive to mount to (0-2).',13,0
 prompt_reset:	ascii	'Power OFF and back ON to continue.',13,0
+
+prompt_next:	ascii	'Press any key for next set of files.',13,0
 
 model:		defs	1		; 0=Model 3; 1=Model 4; 2=Model II;
 opcode:		defs	1		; command line operation requested (0=STA; 1=INI; 2=MNT;)

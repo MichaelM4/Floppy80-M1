@@ -232,6 +232,8 @@ static uint32_t g_dwRotationTime;
 static uint32_t g_dwIndexTime;
 static uint8_t  g_byTrackWritePerformed;
 
+static file*    g_fOpenFile;
+
 static byte     byCommandTypes[] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 4, 3, 3};
 
 //-----------------------------------------------------------------------------
@@ -1428,6 +1430,8 @@ void FdcInit(void)
 		}
 	}
 
+	g_fOpenFile = NULL;
+
 	g_FDC.byCommandReceived = 0;
 	g_FDC.byCommandReg  = 255;
 	g_FDC.byCurCommand  = 255;
@@ -1473,6 +1477,12 @@ void FdcCloseAllFiles(void)
 		}
 
 		memset(&g_dtDives[i], 0, sizeof(FdcDriveType));
+	}
+
+	if (g_fOpenFile != NULL)
+	{
+		FileClose(g_fOpenFile);
+		g_fOpenFile = NULL;
 	}
 }
 
@@ -2021,6 +2031,8 @@ void InitDmkDiskHeader(void)
 
 	g_dtDives[nDrive].byNumTracks = 96;
 	g_dtDives[nDrive].dmk.byDmkDiskHeader[1] = g_dtDives[nDrive].byNumTracks;
+	g_dtDives[nDrive].dmk.byDmkDiskHeader[4] &= ~0x10;
+	g_dtDives[nDrive].dmk.byNumSides = 2;
 
 	FileClose(g_dtDives[nDrive].f);
 	g_dtDives[nDrive].f = FileOpen(g_dtDives[nDrive].szFileName, FA_READ | FA_WRITE);
@@ -2095,15 +2107,82 @@ void FdcProcessMount(void)
 //-----------------------------------------------------------------------------
 void FdcProcessOpenFile(void)
 {
-	g_FDC.byCommandType    = 2;
-	FdcClrFlag(eDataRequest);
-	g_FDC.nServiceState    = 0;
-	g_FDC.nProcessFunction = psOpenFile;
+	// locate the mode to open the file
+	char* psz = (char*)g_bFdcRequest.buf;
+	int   nIndex = 0;
+	BYTE  byMode = 0;
+	int   nSize =  strlen(psz);
 
-	// Note: computer now writes the data register for each of the command data bytes.
-	//
-	//       Actual data transfer is handled in the FdcServiceOpenFile() function.
+	while ((*psz != 0) && (*psz != ',') && (nIndex < nSize))
+	{
+		if (*psz == '/') // replace / with .
+		{
+			*psz = '.';
+		}
+		
+		if (*psz == ':') // strip off drive specification
+		{
+			*psz = 0;
+		}
+		
+		++psz;
+		++nIndex;
+	}
 	
+	if (*psz != ',')
+	{
+		return;
+	}
+
+	*psz = 0;
+	++psz;
+	
+	while (*psz != 0)
+	{
+		if (*psz == 'r')
+		{
+			byMode |= FA_READ;
+		}
+		else if (*psz == 'w')
+		{
+			byMode |= FA_WRITE;
+		}
+
+		++psz;
+	}
+	
+	if (g_fOpenFile != NULL)
+	{
+		FileClose(g_fOpenFile);
+	}
+	
+	g_fOpenFile = FileOpen(g_bFdcRequest.buf, byMode);
+
+	if (g_fOpenFile == NULL)
+	{
+		g_bFdcResponse.cmd[0] = 0;
+		return;
+	}
+
+	g_bFdcResponse.cmd[0] = FileRead(g_fOpenFile, g_bFdcResponse.buf, 250);
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessReadFile(void)
+{
+	g_bFdcResponse.cmd[0] = FileRead(g_fOpenFile, g_bFdcResponse.buf, 250);
+}
+
+//-----------------------------------------------------------------------------
+void FdcProcessCloseFile(void)
+{
+	if (g_fOpenFile == NULL)
+	{
+		return;
+	}
+
+	FileClose(g_fOpenFile);
+	g_fOpenFile = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -3131,6 +3210,18 @@ void FdcProcessRequest(void)
 			FdcServiceMountImage();
 			break;
 			
+		case 5: // open file
+			FdcProcessOpenFile();
+			break;
+
+		case 6: // read file
+			FdcProcessReadFile();
+			break;
+
+		case 8: // close file
+			FdcProcessCloseFile();
+			break;
+
 		case 11: // format mounted drive
 			FdcFormatDrive();
 			break;
