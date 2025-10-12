@@ -7,6 +7,7 @@
 
 #include "defines.h"
 #include "fdc.h"
+#include "video.h"
 
 #define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
 
@@ -249,6 +250,32 @@ void __not_in_flash_func(ServiceFdcDataOperation)(void)
 }
 
 //-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceVideoMemoryOperation)(word addr)
+{
+    byte data;
+
+    if (!get_gpio(RD_PIN))
+    {
+        return;
+    }
+
+//    addr -= VIDEO_ADDR_START;
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    // wait for WR to go active or MREQ to go inactive
+    while (get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+
+    if (!get_gpio(WR_PIN))
+    {
+        VideoWrite(addr, data);
+    }
+}
+
+//-----------------------------------------------------------------------------
 void __not_in_flash_func(service_memory)(void)
 {
     byte data;
@@ -310,9 +337,11 @@ void __not_in_flash_func(service_memory)(void)
         addr.b[1] = get_gpio_data_byte();
         set_gpio(ADDRH_OE_PIN);
 
-        // set_gpio(WAIT_PIN);
-
-        if (addr.w >= 0x8000)
+        if ((addr.w >= VIDEO_ADDR_START) && (addr.w <= VIDEO_ADDR_END))
+        {
+            ServiceVideoMemoryOperation(addr.w);
+        }
+        else if (addr.w >= 0x8000)
         {
             ServiceHighMemoryOperation(addr.w);
         }

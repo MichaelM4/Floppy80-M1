@@ -3158,7 +3158,7 @@ void FdcFormatDrive(void)
 
 	size = g_fno.fsize;
 
- 	gpio_put(LED_PIN, 0);
+ 	// gpio_put(LED_PIN, 0);
 
 	while (size > 0)
 	{
@@ -3174,7 +3174,7 @@ void FdcFormatDrive(void)
 		size -= read;
 	}
 
- 	gpio_put(LED_PIN, 1);
+ 	// gpio_put(LED_PIN, 1);
 
 	FileClose(f);
 	FileClose(g_dtDives[drive].f);
@@ -3270,17 +3270,17 @@ void FdcUpdateCounters(void)
 		if (g_nRotationCount < g_dwIndexTime)
 		{
 			FdcSetFlag(eIndex);
-		 	gpio_put(LED_PIN, 1);
+		 	// gpio_put(LED_PIN, 1);
 		}
 		else
 		{
 			FdcClrFlag(eIndex);
-		 	gpio_put(LED_PIN, 0);
+		 	// gpio_put(LED_PIN, 0);
 		}
 	}
 	else
 	{
-        gpio_put(LED_PIN, 1);
+        // gpio_put(LED_PIN, 1);
 
 		if (g_byMotorWasOn)
 		{

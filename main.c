@@ -16,6 +16,7 @@
 #include "system.h"
 #include "cli.h"
 #include "memory.h"
+#include "video.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // API documentions is located at
@@ -186,6 +187,7 @@ int main()
     FileSystemInit();
     FdcInit();
     InitCli();
+    InitVideo();
 
     multicore_launch_core1(service_memory);
 
@@ -201,5 +203,6 @@ int main()
         UpdateCounters();
         FdcServiceStateMachine();
         ServiceCli();
+        ServiceVideo();
     }
 }

@@ -87,7 +87,11 @@
         "datetime.h": "c",
         "mutex.h": "c",
         "util.h": "c",
-        "ticks.h": "c"
+        "ticks.h": "c",
+        "cstdint": "c",
+        "pio.h": "c",
+        "multicore.h": "c",
+        "spi.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }
