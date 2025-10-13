@@ -3746,7 +3746,8 @@ byte __not_in_flash_func(fdc_read_drive_select)(void)
 		g_byRtcIntrActive = false;
 		byRet |= 0x80;
 
-		if (!g_byFdcIntrActive) // then caused by RTC, so clear it
+        // release INT line if the interrupt was cause by the RTC
+		if (!g_byFdcIntrActive)
 		{
 			// deactivate intr
 			clr_gpio(INT_PIN);

@@ -139,7 +139,8 @@ void __not_in_flash_func(ServiceFdcCmdStatusOperation)(void)
 
     if (!get_gpio(RD_PIN))
     {
-        if (!g_byRtcIntrActive) // then caused by WD controller, so clear it
+        // release INT line if the interrupt was cause by the WD controller
+        if (!g_byRtcIntrActive)
         {
             clr_gpio(INT_PIN);
         }
