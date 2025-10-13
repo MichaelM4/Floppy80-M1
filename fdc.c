@@ -250,10 +250,10 @@ volatile BYTE	g_byIntrRequest;		// controls the INTRQ output pin.  Which simulat
 #ifdef MFC
 	volatile int64_t  g_nRotationCount;
 	volatile uint64_t g_nMotorOnTimer;
-	volatile byte     g_byFdcIntrActive;
 	volatile byte     g_byEnableIntr;
 	volatile byte     g_bStopFdc;
 #else
+	volatile byte     g_byFdcIntrActive;
 	volatile int32_t  g_nRotationCount;
 	volatile uint32_t g_nMotorOnTimer;
 #endif
@@ -3727,6 +3727,33 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 
 	g_FDC.byDriveSel = byData;
 	g_nMotorOnTimer  = 2000000;
+}
+
+//-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_read_drive_select)(void)
+{
+	byte byRet = g_byDriveStatus;
+
+#ifdef ENABLE_LOGGING
+	fdc_log[log_head].type = read_drive_select;
+	fdc_log[log_head].val = g_byDriveStatus;
+	++log_head;
+	log_head = log_head % LOG_SIZE;
+#endif
+
+	if (g_byRtcIntrActive)
+	{
+		g_byRtcIntrActive = false;
+		byRet |= 0x80;
+
+		if (!g_byFdcIntrActive) // then caused by RTC, so clear it
+		{
+			// deactivate intr
+			clr_gpio(INT_PIN);
+		}
+	}
+
+	return byRet;
 }
 
 //-----------------------------------------------------------------------------

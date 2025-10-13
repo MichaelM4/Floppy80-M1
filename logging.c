@@ -267,6 +267,8 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 void ServiceFdcLog(void)
 {
 	static BYTE byPrevStatus = 0;
+	static BYTE byPrevDrvSelRd = 0;
+	static BYTE byDrvSelRdCount = 0;
     char buf[64];
 	char t[8];
 
@@ -285,8 +287,6 @@ void ServiceFdcLog(void)
         case write_drive_select:
             if (g_nDriveSel != fdc_log[log_tail].val)
             {
-                char buf[64];
-
                 sprintf_s(buf, sizeof(buf), "WR DRVSEL %02X", fdc_log[log_tail].val);
 
                 #ifdef MFC
@@ -298,6 +298,26 @@ void ServiceFdcLog(void)
 
 				g_nDriveSel = fdc_log[log_tail].val;
             }
+
+			break;
+
+		case read_drive_select:
+			++byDrvSelRdCount;
+
+			if ((fdc_log[log_tail].val != byPrevDrvSelRd) || (byDrvSelRdCount >= 40))
+			{
+				sprintf_s(buf, sizeof(buf), "RD DRVSEL %02X x %d", fdc_log[log_tail].val, byDrvSelRdCount);
+
+				#ifdef MFC
+					strcat_s(buf, sizeof(buf)-1, "\r\n");
+					WriteLogFile(buf);
+				#else
+					puts(buf);
+				#endif
+
+				byDrvSelRdCount = 0;
+				byPrevDrvSelRd = fdc_log[log_tail].val;
+			}
 
 			break;
 
