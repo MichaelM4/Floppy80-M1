@@ -173,6 +173,7 @@ enum {
 	write_sector,
 	write_track,
 	write_cmd,
+	read_drive_select,
 	read_data,
 	read_sector,
 	read_track,
@@ -211,7 +212,6 @@ enum {
 
 extern volatile uint8_t sd_byCardInialized;
 extern volatile byte    g_byRtcIntrActive;
-extern volatile byte    g_byFdcIntrActive;
 extern volatile byte    g_byResetActive;
 extern volatile byte    g_byEnableIntr;
 extern volatile int32_t g_nRotationCount;
