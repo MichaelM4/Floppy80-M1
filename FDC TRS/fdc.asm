@@ -40,7 +40,8 @@ start:
 	ld	(RESPONSE_ADDR+1),a
 	ld	(REQUEST_ADDR),a
 	ld	(REQUEST_ADDR+1),a
-	ld	(hidesel),a
+	ld	(hidefsel),a
+	ld	(hidedsel),a
 
 	call	getparms
 
@@ -66,6 +67,8 @@ gotid1:
 	jr	nz,gotid2
 	ld	a,FINDINI_CMD	; find .ini files
 	ld	(opcode),a
+	ld	a,1
+	ld	(hidedsel),a
 	jp	getlist
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -120,7 +123,8 @@ gotid6:
 	ld	a,FINDALL_CMD	; find .*
 	ld	(opcode),a
 	ld	a,1
-	ld	(hidesel),a
+	ld	(hidefsel),a
+	ld	(hidedsel),a
 	jp	getlist
 
 gotid7:
@@ -394,8 +398,8 @@ getlist20:
 	; display file name
 	push	bc
 
-	; if (hidesel) then don't display the select character
-	ld	a,(hidesel)
+	; if (hidefsel) then don't display the file select character
+	ld	a,(hidefsel)
 	cp	0
 	jr	nz,getlist21
 
@@ -457,8 +461,8 @@ getlist30:
 
 	; if here then we have at least one entry
 
-	; if (hidesel) then display press any key for next set of files
-	ld	a,(hidesel)
+	; if (hidefsel) then display press any key for next set of files
+	ld	a,(hidefsel)
 	cp	0
 	jr	nz,getlist31
 
@@ -510,8 +514,8 @@ sel_item:
 	jp	getnextset
 
 sel_item10:
-	; if (hidesel) then don't ask user for drive index
-	ld	a,(hidesel)
+	; if (hidedsel) then don't ask user for drive index
+	ld	a,(hidedsel)
 	cp	0
 	jr	nz,sel_item30
 
@@ -545,7 +549,7 @@ sel_item30:
 	cp	FINDFMT_CMD
 	jr	z,do_format
 
-	ld	a,(hidesel)
+	ld	a,(hidefsel)
 	cp	0
 	jr	nz,sel_item40
 
@@ -1287,7 +1291,8 @@ prompt_reset:	ascii	'Power OFF and back ON to continue.',13,0
 prompt_next:	ascii	'Press any key for next set of files.',13,0
 
 opcode:		defs	1		; command line operation requested (0=STA; 1=INI; 2=MNT;)
-hidesel:	defs	1
+hidefsel:	defs	1		; if not zero then hide file select index and prompt
+hidedsel:	defs	1		; if not zero hide drive select to mount prompt
 found:		defs	1
 select:		defs	1
 drive:		defs	1
