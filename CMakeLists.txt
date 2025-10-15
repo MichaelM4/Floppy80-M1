@@ -47,6 +47,7 @@ add_executable(Floppy80
     cli.c
     memory.c
     logging.c
+    hdc.c
 )
 
 # pull in common dependencies

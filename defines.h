@@ -157,8 +157,8 @@ typedef unsigned long      	dword;
 typedef struct {
 	uint8_t type;
 	uint8_t val;
-  uint8_t op1;
-  uint8_t op2;
+	uint8_t op1;
+	uint8_t op2;
 } LogType;
 
 #define LOG_SIZE 4096
@@ -178,6 +178,8 @@ enum {
 	read_sector,
 	read_track,
 	read_status,
+	port_out,
+	port_in,
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

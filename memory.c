@@ -7,6 +7,7 @@
 
 #include "defines.h"
 #include "fdc.h"
+#include "hdc.h"
 
 #define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
 
@@ -237,6 +238,51 @@ void __not_in_flash_func(ServiceFdcDataOperation)(void)
 }
 
 //-----------------------------------------------------------------------------
+void __not_in_flash_func(ServicePortIn)(word addr)
+{
+    byte data;
+
+    if (get_gpio(IN_PIN))
+    {
+        return;
+    }
+
+    addr = addr & 0xFF;
+
+    if ((addr < 0xC0) || (addr > 0xCF))
+    {
+        return;
+    }
+
+    FinishReadOperation(hdc_port_in(addr));
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServicePortOut)(word addr)
+{
+    byte data;
+
+    if (get_gpio(OUT_PIN))
+    {
+        return;
+    }
+
+    addr = addr & 0xFF;
+
+    if ((addr < 0xC0) || (addr > 0xCF))
+    {
+        return;
+    }
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    hdc_port_out(addr, data);
+}
+
+//-----------------------------------------------------------------------------
 void __not_in_flash_func(service_memory)(void)
 {
     byte data;
@@ -259,8 +305,8 @@ void __not_in_flash_func(service_memory)(void)
 
        	g_byResetActive = false;
 
-        // wait for MREQ to go inactive
-        while (!get_gpio(MREQ_PIN));
+        // wait for MREQ, IN and OUT to go inactive
+        while (!get_gpio(MREQ_PIN) || !get_gpio(IN_PIN) || !get_gpio(OUT_PIN));
 
         // turn bus around
         set_gpio(DATAB_OE_PIN); // disable data bus transciever
@@ -273,10 +319,10 @@ void __not_in_flash_func(service_memory)(void)
         clr_gpio(ADDRL_OE_PIN);
         NopDelay();
 
-        // wait for MREQ to go active, reading low address byte while waiting
+        // wait for MREQ, IN or OUT to go active, reading low address byte while waiting
         do {
             addr.b[0] = get_gpio_data_byte();
-        } while (get_gpio(MREQ_PIN));
+        } while (get_gpio(MREQ_PIN) && get_gpio(IN_PIN) && get_gpio(OUT_PIN));
 
         set_gpio(ADDRL_OE_PIN);
 
@@ -300,7 +346,15 @@ void __not_in_flash_func(service_memory)(void)
 
         // set_gpio(WAIT_PIN);
 
-        if (addr.w >= 0x8000)
+        if (!get_gpio(IN_PIN))
+        {
+            ServicePortIn(addr.w);
+        }
+        else if (!get_gpio(OUT_PIN))
+        {
+            ServicePortOut(addr.w);
+        }
+        else if (addr.w >= 0x8000)
         {
             ServiceHighMemoryOperation(addr.w);
         }
