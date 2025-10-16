@@ -13,6 +13,7 @@
 #include "defines.h"
 #include "sd_core.h"
 #include "fdc.h"
+#include "hdc.h"
 #include "system.h"
 #include "cli.h"
 #include "memory.h"
@@ -185,6 +186,7 @@ int main()
     SDHC_Init();
     FileSystemInit();
     FdcInit();
+    HdcInit();
     InitCli();
 
     multicore_launch_core1(service_memory);
@@ -200,6 +202,7 @@ int main()
     {
         UpdateCounters();
         FdcServiceStateMachine();
+        HdcServiceStateMachine();
         ServiceCli();
     }
 }
