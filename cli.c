@@ -174,8 +174,16 @@ void DumpSector(int nDrive, int nTrack, int nSector)
     sleep_ms(5);
 }
 
+void HdcDumpDisk(void);
+
 void ProcessDumpRequest(int nDrive)
 {
+    if (nDrive == 4)
+    {
+        HdcDumpDisk();
+        return;
+    }
+
     if ((nDrive < 0) || (nDrive >= MAX_DRIVES))
     {
         puts("Invalid drive index specified.");

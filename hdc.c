@@ -116,21 +116,62 @@ typedef struct {
 	int   nReadCount;
 	byte* pbyWritePtr;
 	int   nWriteCount;
+	byte  byActiveCommand;
 } HdcType;
 
 HdcType Hdc;
 
+file* g_fVhd = NULL;
+
+static int g_nSectorSizes[] = {256, 512, 1024, 128};
+
 //-----------------------------------------------------------------------------
 void HdcInit(void)
 {
+	int i, j, k;
+
 	memset(&Hdc, 0, sizeof(Hdc));
 	Hdc.byStatusRegister |= STATUS_MASK_DRIVE_READY;
+
+	g_fVhd = FileOpen("hard0.hdv", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+
+	if (g_fVhd == NULL)
+	{
+		g_fVhd = FileOpen("hard0.hdv", FA_CREATE_NEW | FA_WRITE);
+
+		for (i = 0; i < MAX_VHD_HEADS; ++i)
+		{
+			for (j = 0; j < MAX_VHD_CYLINDERS; ++j)
+			{
+				for (k = 0; k < MAX_VHD_SECTORS_PER_CYLINDER; ++k)
+				{
+					FileWrite(g_fVhd, Hdc.bySectorBuffer, 256);
+				}
+			}
+		}
+
+		FileClose(g_fVhd);
+
+		g_fVhd = FileOpen("hard0.hdv", FA_READ | FA_WRITE);
+	}
+}
+
+//-----------------------------------------------------------------------------
+uint32_t HdcGetSectorOffset(void)
+{
+	// SectorData[nMaxHeads][nMaxCylinders][nMaxSectorsPerCylinder][nSectorSize]
+
+	uint32_t nCylinder = (Hdc.byHighCylinderRegister << 8) + Hdc.byLowCylinderRegister;
+	uint32_t nOffset   = Hdc.byHeadSel * MAX_VHD_CYLINDERS * MAX_VHD_SECTORS_PER_CYLINDER * Hdc.nSectorSize +
+						 nCylinder * MAX_VHD_SECTORS_PER_CYLINDER * Hdc.nSectorSize +
+						 Hdc.bySectorNumberRegister * Hdc.nSectorSize;
+
+	return nOffset;
 }
 
 //-----------------------------------------------------------------------------
 void HdcServiceTestCommand(void)
 {
-	Hdc.byStatusRegister |= STATUS_MASK_SEEK_COMPLETE;
 }
 
 //-----------------------------------------------------------------------------
@@ -140,39 +181,60 @@ void HdcServiceRestoreCommand(void)
 }
 
 //-----------------------------------------------------------------------------
+void HdcDumpDisk(void)
+{
+	byte  byBuf[256];
+	byte* pby;
+	int   head = 0, cyl = 0, sec = 0;
+	int   i = 0, j = 0, k = 0;
+
+	FileSeek(g_fVhd, 0);
+
+	// for (head = 0; head < MAX_VHD_HEADS; ++head)
+	// {
+	// 	for (cyl = 0; cyl < MAX_VHD_CYLINDERS; ++cyl)
+		{
+			for (sec = 0; sec < MAX_VHD_SECTORS_PER_CYLINDER; ++sec)
+			{
+				FileRead(g_fVhd, byBuf, sizeof(byBuf));
+			
+                printf("HEAD: %02X CYL: %02X SEC: %02X\r\n", head, cyl, sec);
+    	        // while (tud_cdc_write_available() < 56);
+
+				i = 0;
+
+				for (j = 0; j < 16; ++j)
+				{
+					for (k = 0; k < 16; ++k)
+					{
+						printf("%02X ", byBuf[i]);
+						++i;
+					}
+
+					printf("\r\n");
+				}
+			}
+		}
+	// }
+
+}
+
+//-----------------------------------------------------------------------------
 void HdcServiceReadSectorCommand(void)
 {
-	int nSectorSizes[] = {256, 512, 1024, 128};
-
-	Hdc.nSectorSize = nSectorSizes[(Hdc.bySDH_Register >> 5) & 0x03];
+	Hdc.nSectorSize = g_nSectorSizes[(Hdc.bySDH_Register >> 5) & 0x03];
 	Hdc.byDriveSel  = (Hdc.bySDH_Register >> 3) & 0x03;
 	Hdc.byHeadSel   = Hdc.bySDH_Register & 0x07;
 
 	Hdc.pbyReadPtr = Hdc.bySectorBuffer;
-	Hdc.nReadCount = 0;
+	Hdc.nReadCount = Hdc.nSectorSize;
+
+	uint32_t nOffset = HdcGetSectorOffset();
+
+	FileSeek(g_fVhd, nOffset);
+	FileRead(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
 
 	Hdc.byStatusRegister |= STATUS_MASK_DATA_REQUEST;
-}
-
-//-----------------------------------------------------------------------------
-void HdcServiceWriteSectorCommand(void)
-{
-	int nSectorSizes[] = {256, 512, 1024, 128};
-
-	Hdc.nSectorSize = nSectorSizes[(Hdc.bySDH_Register >> 5) & 0x03];
-	Hdc.byDriveSel  = (Hdc.bySDH_Register >> 3) & 0x03;
-	Hdc.byHeadSel   = Hdc.bySDH_Register & 0x07;
-
-	Hdc.pbyWritePtr = Hdc.bySectorBuffer;
-	Hdc.nWriteCount = 0;
-
-	Hdc.byStatusRegister |= STATUS_MASK_DATA_REQUEST;
-}
-
-//-----------------------------------------------------------------------------
-void HdcServiceFormatCommand(void)
-{
-
 }
 
 //-----------------------------------------------------------------------------
@@ -182,8 +244,62 @@ void HdcServiceSeekCommand(void)
 }
 
 //-----------------------------------------------------------------------------
+void ProcessActiveCommand(void)
+{
+	uint32_t nOffset, i;
+
+	switch (Hdc.byActiveCommand >> 4)
+	{
+		case 0x03: // Write Sector
+			if (Hdc.nWriteCount > 0)
+			{
+				break;
+			}
+
+			nOffset = HdcGetSectorOffset();
+
+			FileSeek(g_fVhd, nOffset);
+			FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
+			FileFlush(g_fVhd);
+
+			Hdc.byActiveCommand = 0;
+			break;
+
+		case 0x05: // Format Track
+			if (Hdc.nWriteCount > 0)
+			{
+				break;
+			}
+
+			nOffset = HdcGetSectorOffset();
+
+			FileSeek(g_fVhd, nOffset);
+
+			for (i = 0; i < Hdc.bySectorCountRegister; ++i)
+			{
+				FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
+			}
+
+			FileFlush(g_fVhd);
+
+			Hdc.byActiveCommand = 0;
+			break;
+
+		default:
+			Hdc.byActiveCommand = 0;
+			break;
+	}
+}
+
+//-----------------------------------------------------------------------------
 void HdcServiceStateMachine(void)
 {
+	if (Hdc.byActiveCommand != 0)
+	{
+		ProcessActiveCommand();
+		return;
+	}
+
 	if (Hdc.byCommandRegister == 0)
 	{
 		return;
@@ -200,11 +316,11 @@ void HdcServiceStateMachine(void)
 			break;
 
 		case 0x03: // Write Sector
-			HdcServiceWriteSectorCommand();
+			Hdc.byActiveCommand = Hdc.byCommandRegister;
 			break;
 
 		case 0x05: // Format Track
-			HdcServiceFormatCommand();
+			Hdc.byActiveCommand = Hdc.byCommandRegister;
 			break;
 
 		case 0x07: // Seek
@@ -214,10 +330,12 @@ void HdcServiceStateMachine(void)
 		case 0x09: // Test
 			HdcServiceTestCommand();
 			break;
+
+		default:
+			break;
 	}
 
 	Hdc.byCommandRegister = 0;
-	Hdc.byStatusRegister |= STATUS_MASK_DRIVE_READY;
 }
 
 //-----------------------------------------------------------------------------
@@ -241,16 +359,25 @@ void __not_in_flash_func(hdc_port_out)(word addr, byte data)
 		case 0xC8: // Data Register
 			*Hdc.pbyWritePtr = data;
 
-			if (Hdc.nWriteCount < sizeof(Hdc.bySectorBuffer))
+			if (Hdc.nWriteCount > 0)
 			{
-				++Hdc.nReadCount;
+				--Hdc.nWriteCount;
 				++Hdc.pbyWritePtr;
+
+				if (Hdc.nWriteCount == 0)
+				{
+					Hdc.byStatusRegister &= ~STATUS_MASK_DATA_REQUEST;
+				}
 			}
 
 			break;
 
 		case 0xC9: // Hard Disk Write Pre-Comp Cyl.
 			Hdc.byWritePrecompRegister = data;
+			break;
+
+		case 0xCA: // Hard Disk Sector Count (Read/Write).
+			Hdc.bySectorCountRegister = data;
 			break;
 
 		case 0xCB: // Hard Disk Sector Number (Read/Write).
@@ -267,12 +394,18 @@ void __not_in_flash_func(hdc_port_out)(word addr, byte data)
 
 		case 0xCE: // Hard Disk Sector Size / Drive # / Head # (Read/Write).
 			Hdc.bySDH_Register = data;
+			Hdc.nSectorSize = g_nSectorSizes[(Hdc.bySDH_Register >> 5) & 0x03];
+			Hdc.byDriveSel  = (Hdc.bySDH_Register >> 3) & 0x03;
+			Hdc.byHeadSel   = Hdc.bySDH_Register & 0x07;
 			break;
 
-		case 0xCF: // Commaand Register for WD1010 Winchester Disk Controller Chip.
+		case 0xCF: // Command Register for WD1010 Winchester Disk Controller Chip.
+			Hdc.pbyWritePtr = Hdc.bySectorBuffer;
+			Hdc.nWriteCount = Hdc.nSectorSize;
+			Hdc.byActiveCommand = 0;
 			Hdc.byCommandRegister = data;
-			Hdc.byStatusRegister &= ~STATUS_MASK_DRIVE_READY;
 			Hdc.byInterruptRequest = 0;
+			Hdc.byStatusRegister &= ~STATUS_MASK_DATA_REQUEST;
 			break;
 	}
 }
@@ -284,14 +417,6 @@ byte __not_in_flash_func(hdc_port_in)(word addr)
 
 	addr = addr & 0xFF;
 
-#ifdef ENABLE_LOGGING
-	fdc_log[log_head].type = port_in;
-	fdc_log[log_head].val = data;
-    fdc_log[log_head].op1 = addr;
-	++log_head;
-	log_head = log_head % LOG_SIZE;
-#endif
-
 	switch (addr)
 	{
 		case 0xC0: // 0xC0 - Write Protection.
@@ -301,10 +426,15 @@ byte __not_in_flash_func(hdc_port_in)(word addr)
 		case 0xC8: // Data Register
 			data = *Hdc.pbyReadPtr;
 
-			if (Hdc.nReadCount < sizeof(Hdc.bySectorBuffer))
+			if (Hdc.nReadCount > 0)
 			{
-				++Hdc.nReadCount;
+				--Hdc.nReadCount;
 				++Hdc.pbyReadPtr;
+
+				if (Hdc.nReadCount == 0)
+				{
+					Hdc.byStatusRegister &= ~STATUS_MASK_DATA_REQUEST;
+				}
 			}
 
 			break;
@@ -338,5 +468,13 @@ byte __not_in_flash_func(hdc_port_in)(word addr)
 			break;
 	}
 
-    return data;
+#ifdef ENABLE_LOGGING
+	fdc_log[log_head].type = port_in;
+	fdc_log[log_head].val = data;
+    fdc_log[log_head].op1 = addr;
+	++log_head;
+	log_head = log_head % LOG_SIZE;
+#endif
+
+	return data;
 }

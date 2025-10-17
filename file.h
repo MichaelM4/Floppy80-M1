@@ -14,7 +14,7 @@ extern "C" {
     #define FA_WRITE 0x02
 #endif
 
-#define MAX_FILES 6
+#define MAX_FILES 8
 
 #ifdef MFC
     #define FIL CFile

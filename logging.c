@@ -18,6 +18,7 @@ static char     g_szRwBuf[256];
 static int      g_nDriveSel = -1;
 static int      g_nCommand = -1;
 static int      g_nCommandType = -1;
+static int      g_nSectorSizes[] = {256, 512, 1024, 128};
 
 LogType fdc_log[LOG_SIZE];
 int log_head = 0;
@@ -267,6 +268,36 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 	}
 }
 
+void AppendHdcCommandString(char* psz, int nMaxLen, byte byCmd)
+{
+	switch (byCmd >> 4)
+	{
+		case 0x01: // Restore
+			strcat_s(psz, nMaxLen, "Restore");
+			break;
+
+		case 0x02: // Read Sector
+			strcat_s(psz, nMaxLen, "Read Sector");
+			break;
+
+		case 0x03: // Write Sector
+			strcat_s(psz, nMaxLen, "Write Sector");
+			break;
+
+		case 0x05: // Format Track
+			strcat_s(psz, nMaxLen, "Format Track");
+			break;
+
+		case 0x07: // Seek
+			strcat_s(psz, nMaxLen, "Seek");
+			break;
+
+		case 0x09: // Test
+			strcat_s(psz, nMaxLen, "Test");
+			break;
+	}
+}
+
 void ServicePortOutLog(void)
 {
     char buf[64];
@@ -326,6 +357,17 @@ void ServicePortOutLog(void)
 			#endif
 			break;
 
+		case 0xCA: // Hard Disk Sector Count (Read/Write).
+            PurgeRwBuffer();
+			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Sector Count)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+			#ifdef MFC
+				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+				WriteLogFile(buf2);
+			#else
+				puts(buf);
+			#endif
+			break;
+
 		case 0xCB: // Hard Disk Sector Number (Read/Write).
             PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Sector Number)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
@@ -361,7 +403,12 @@ void ServicePortOutLog(void)
 
 		case 0xCE: // Hard Disk Sector Size / Drive # / Head # (Read/Write).
             PurgeRwBuffer();
-			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (SDH)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X SDH: Sector Size %d, Drive Sel %d, Head Sel %d",
+					  fdc_log[log_tail].op1, fdc_log[log_tail].val,
+					  g_nSectorSizes[(fdc_log[log_tail].val >> 5) & 0x03],
+					  (fdc_log[log_tail].val >> 3) & 0x03,
+					  fdc_log[log_tail].val & 0x07);
+
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
 				WriteLogFile(buf2);
@@ -370,9 +417,10 @@ void ServicePortOutLog(void)
 			#endif
 			break;
 
-		case 0xCF: // Command Register for WD1010 Winchester Disk Controller Chip.
+		case 0xCF: // Command/Status Register for WD1010 Winchester Disk Controller Chip.
             PurgeRwBuffer();
-			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (CMD Reg)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X CMD: ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+			AppendHdcCommandString(buf, sizeof(buf)-1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
 				WriteLogFile(buf2);
@@ -394,9 +442,9 @@ void ServicePortOutLog(void)
 	}
 }
 
-
 void ServicePortInLog(void)
 {
+	static BYTE byPrevStatus = 0;
     char buf[64];
 	char t[8];
 
@@ -404,6 +452,7 @@ void ServicePortInLog(void)
 	{
 		case 0xC1: // Hard disk controller board control register (Read/Write).
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -414,6 +463,7 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xC8: // Data Register
+			byPrevStatus = 0;
             if (g_byRwIndex == 0)
             {
                 sprintf_s(g_szRwBuf, sizeof(g_szRwBuf)-1, "INP DATA %02X", fdc_log[log_tail].val);
@@ -445,7 +495,20 @@ void ServicePortInLog(void)
 
 		case 0xC9: // Hard Disk Write Pre-Comp Cyl.
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Error Register)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+			#ifdef MFC
+				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+				WriteLogFile(buf2);
+			#else
+				puts(buf);
+			#endif
+			break;
+
+		case 0xCA: // Hard Disk Sector Count (Read/Write).
+            PurgeRwBuffer();
+			byPrevStatus = 0;
+			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Sector Count)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
 				WriteLogFile(buf2);
@@ -456,6 +519,7 @@ void ServicePortInLog(void)
 
 		case 0xCB: // Hard Disk Sector Number (Read/Write).
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Sector Number)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -467,6 +531,7 @@ void ServicePortInLog(void)
 
 		case 0xCC: // Hard Disk Cylinder LSB (Read/Write).
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Cylinder LSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -478,6 +543,7 @@ void ServicePortInLog(void)
 
 		case 0xCD: // Hard Disk Cylinder MSB (Read/Write).
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Cylinder MSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -489,6 +555,7 @@ void ServicePortInLog(void)
 
 		case 0xCE: // Hard Disk Sector Size / Drive # / Head # (Read/Write).
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (SDH)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -498,19 +565,27 @@ void ServicePortInLog(void)
 			#endif
 			break;
 
-		case 0xCF: // Command Register for WD1010 Winchester Disk Controller Chip.
-            PurgeRwBuffer();
-			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Status Reg)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
-			#ifdef MFC
-				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
-				WriteLogFile(buf2);
-			#else
-				puts(buf);
-			#endif
+		case 0xCF: // Command/Status Register for WD1010 Winchester Disk Controller Chip.
+			PurgeRwBuffer();
+
+            if (byPrevStatus != fdc_log[log_tail].val)
+			{
+				sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Status Reg)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+				#ifdef MFC
+					strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+					WriteLogFile(buf2);
+				#else
+					puts(buf);
+				#endif
+
+				byPrevStatus = fdc_log[log_tail].val;
+			}
+
 			break;
 
 		default:
             PurgeRwBuffer();
+			byPrevStatus = 0;
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
