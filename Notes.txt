@@ -15,13 +15,6 @@ VTDOS 3.0.0           Yes      Yes     Yes    Yes
 VTDOS 4.0.1           Yes      Yes     Yes    Yes
 
 --------------------
-Known issues
-- Backup/cmd fails under some contition.
-  Appears to be related to specific floppies.
-  Looks to be a timing issue. Activating wait on
-  every I/O and Memory opetaion allows it to work.
-
---------------------
 - CPM 1.4.1 (Lifeboat)
   FORMAT
   - works
