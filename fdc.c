@@ -3684,27 +3684,6 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 }
 
 //-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_read_drive_select)(void)
-{
-	byte byRet = g_byDriveStatus;
-
-#ifdef ENABLE_LOGGING
-	fdc_log[log_head].type = read_drive_select;
-	fdc_log[log_head].val = g_byDriveStatus;
-	++log_head;
-	log_head = log_head % LOG_SIZE;
-#endif
-
-	if (g_byRtcIntrActive)
-	{
-		g_byRtcIntrActive = false;
-		byRet |= 0x80;
-	}
-
-	return byRet;
-}
-
-//-----------------------------------------------------------------------------
 void __not_in_flash_func(fdc_put_response_byte)(word addr, byte data)
 {
 	if (addr < FDC_CMD_SIZE)

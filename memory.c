@@ -416,6 +416,7 @@ void __not_in_flash_func(service_memory)(void)
                         // set_gpio(WAIT_PIN);
                         ServiceFdcResponseOperation(addr);
                     }
+
                     break;
             }
         }

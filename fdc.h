@@ -396,7 +396,6 @@ byte fdc_read_sector(void);
 byte fdc_read_data(void);
 
 void fdc_write_drive_select(byte byData);
-byte fdc_read_drive_select(void);
 void fdc_process_command_request(byte by);
 
 void fdc_put_response_byte(word addr, byte data);
