@@ -3153,8 +3153,6 @@ void FdcFormatDrive(void)
 
 	size = g_fno.fsize;
 
- 	gpio_put(LED_PIN, 0);
-
 	while (size > 0)
 	{
 		read = sizeof(g_byTrackBuffer);
@@ -3168,8 +3166,6 @@ void FdcFormatDrive(void)
 		FileWrite(g_dtDives[drive].f, g_byTrackBuffer, read);
 		size -= read;
 	}
-
- 	gpio_put(LED_PIN, 1);
 
 	FileClose(f);
 	FileClose(g_dtDives[drive].f);
@@ -3367,49 +3363,65 @@ void FdcServiceStateMachine(void)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
-	if (byData == 0xFE) // Percom doubler
-	{
-		if (g_FDC.byEnableDoubler)
-		{
-			if (g_FDC.byDoublerType != eRsDoubler)
-			{
-				g_FDC.byDoublerDensity = 0;
-				g_FDC.byDoublerType = ePcDoubler;
-			}
-		}
-	}
-	else if (byData == 0xFF) // Percom doubler
-	{
-		if (g_FDC.byEnableDoubler)
-		{
-			if (g_FDC.byDoublerType != eRsDoubler)
-			{
-				g_FDC.byDoublerDensity = 1;
-				g_FDC.byDoublerType = ePcDoubler;
-			}
-		}
-	}
-	else
-	{
-		g_FDC.byCommandReg = byData;
-
-		if (g_byIntrRequest)
-		{
-			g_byIntrRequest = 0;
-			g_byFdcIntrActive = false;
-		}
-
-		g_FDC.status.byBusy = 1;
-		g_FDC.byStatus      = F_BUSY;
-		g_FDC.byCommandReceived = 1;
-	}
-
 #ifdef ENABLE_LOGGING
 	fdc_log[log_head].type = write_cmd;
 	fdc_log[log_head].val = byData;
 	++log_head;
 	log_head = log_head % LOG_SIZE;
 #endif
+
+#ifdef ENABLE_DOUBLER
+	if (g_FDC.byEnableDoubler)
+	{
+		if (byData == 0xFE) // Percom doubler
+		{
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 0;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
+			
+			return;
+		}
+		else if (byData == 0xFF) // Percom doubler
+		{
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 1;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
+
+			return;
+		}
+	}
+#endif
+
+	g_FDC.byCommandReg = byData;
+
+	if (g_byIntrRequest)
+	{
+		g_byIntrRequest = 0;
+		g_byFdcIntrActive = false;
+	}
+
+	g_FDC.status.byBusy = 1;
+	g_FDC.byStatus      = F_BUSY;
+	g_FDC.byCommandReceived = 1;
+
+	if ((byData & 0xF0) == 0) // Restore command
+	{
+		if (byData & 0x08) // load head now
+		{
+			g_FDC.byStatus |= F_HEADLOAD;
+			g_FDC.status.byHeadLoaded = 1;
+		}
+	}
+	else if (byData == 0xF4)
+	{
+		g_nRotationCount = g_dwIndexTime + 1;
+		g_FDC.status.byIndex = 0;
+		g_FDC.byStatus  &= ~F_INDEX;
+	}
 }
 
 //-----------------------------------------------------------------------------
