@@ -398,11 +398,6 @@ byte fdc_read_data(void);
 void fdc_write_drive_select(byte byData);
 void fdc_process_command_request(byte by);
 
-void fdc_put_response_byte(word addr, byte data);
-byte fdc_get_response_byte(word addr);
-void fdc_put_request_byte(word addr, byte data);
-byte fdc_get_request_byte(word addr);
-
 #ifdef __cplusplus
 }
 #endif

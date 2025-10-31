@@ -204,8 +204,8 @@ SectorType   g_stSector;
 
 static char        g_szBootConfig[80];
 
-static BufferType  g_bFdcRequest;
-static BufferType  g_bFdcResponse;
+BufferType  g_bFdcRequest;
+BufferType  g_bFdcResponse;
 
 #ifndef MFC
 	static DIR     g_dj;				// Directory object
@@ -3693,56 +3693,4 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 
 	g_FDC.byDriveSel = byData;
 	g_nMotorOnTimer  = 2000000;
-}
-
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_put_response_byte)(word addr, byte data)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		g_bFdcResponse.cmd[addr] = data;
-	}
-	else
-	{
-		g_bFdcResponse.buf[addr-FDC_CMD_SIZE] = data;
-	}
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_get_response_byte)(word addr)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		return g_bFdcResponse.cmd[addr];
-	}
-	else
-	{
-		return g_bFdcResponse.buf[addr-FDC_CMD_SIZE];
-	}
-}
-
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_put_request_byte)(word addr, byte data)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		g_bFdcRequest.cmd[addr] = data;
-	}
-	else
-	{
-		g_bFdcRequest.buf[addr-FDC_CMD_SIZE] = data;
-	}
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_get_request_byte)(word addr)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		return g_bFdcRequest.cmd[addr];
-	}
-	else
-	{
-		return g_bFdcRequest.buf[addr-FDC_CMD_SIZE];
-	}
 }

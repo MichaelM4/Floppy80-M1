@@ -11,6 +11,9 @@
 
 #define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
 
+extern BufferType g_bFdcRequest;
+extern BufferType g_bFdcResponse;
+
 static byte by_memory[0x8000];
 
 volatile byte g_byFdcIntrActive;
@@ -34,51 +37,75 @@ void __not_in_flash_func(FinishReadOperation)(byte data)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(ServiceFdcResponseOperation)(word addr)
 {
-    byte data;
-    
-    // wait for RD or WR to go active or MREQ to go inactive
-    while (get_gpio(RD_PIN) && get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+    byte* pby;
+    byte  data;
+
+    addr -= FDC_RESPONSE_ADDR_START;
+
+    if (addr < FDC_CMD_SIZE)
+    {
+        pby = &g_bFdcResponse.cmd[addr];
+    }
+    else
+    {
+        pby = &g_bFdcResponse.buf[addr-FDC_CMD_SIZE];
+    }
 
     if (!get_gpio(RD_PIN))
     {
-        addr -= FDC_RESPONSE_ADDR_START;
-        data = fdc_get_response_byte(addr);
-        FinishReadOperation(data);
+        FinishReadOperation(*pby);
+        return;
     }
-    else if (!get_gpio(WR_PIN))
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while (get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+
+    if (!get_gpio(WR_PIN))
     {
-        addr -= FDC_RESPONSE_ADDR_START;
-        fdc_put_response_byte(addr, data);
+        *pby = data;
     }
 }
 
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(ServiceFdcRequestOperation)(word addr)
 {
-    byte data;
-    
-    if (get_gpio(RD_PIN)) // assume to be a WR
-    {
-        clr_gpio(DATAB_OE_PIN);
-        NopDelay();
-        data = get_gpio_data_byte();
-        set_gpio(DATAB_OE_PIN);
-    }
+    byte  data;
+    byte* pby;
 
-    // wait for RD or WR to go active or MREQ to go inactive
-    while (get_gpio(RD_PIN) && get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+    addr -= FDC_REQUEST_ADDR_START;
+
+    if (addr < FDC_CMD_SIZE)
+    {
+        pby = &g_bFdcRequest.cmd[addr];
+    }
+    else
+    {
+        pby = &g_bFdcRequest.buf[addr-FDC_CMD_SIZE];
+    }
 
     if (!get_gpio(RD_PIN))
     {
-        addr -= FDC_REQUEST_ADDR_START;
-        data = fdc_get_request_byte(addr);
-        FinishReadOperation(data);
+        FinishReadOperation(*pby);
+        return;
     }
-    else if (!get_gpio(WR_PIN))
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while (get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+
+    if (!get_gpio(WR_PIN))
     {
-        addr -= FDC_REQUEST_ADDR_START;
-        fdc_put_request_byte(addr, data);
-    }
+        *pby = data;
+    }    
 }
 
 //-----------------------------------------------------------------------------
@@ -375,7 +402,7 @@ void __not_in_flash_func(service_memory)(void)
         }
         else if (addr >= 0x8000)
         {
-            set_gpio(WAIT_PIN);
+            // set_gpio(WAIT_PIN);
             ServiceHighMemoryOperation(addr);
         }
         else
@@ -409,12 +436,12 @@ void __not_in_flash_func(service_memory)(void)
                 default:
                     if ((addr >= FDC_REQUEST_ADDR_START) && (addr <= FDC_REQUEST_ADDR_STOP))
                     {
-                        set_gpio(WAIT_PIN);
+                        // set_gpio(WAIT_PIN);
                         ServiceFdcRequestOperation(addr);
                     }
                     else if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP))
                     {
-                        set_gpio(WAIT_PIN);
+                        // set_gpio(WAIT_PIN);
                         ServiceFdcResponseOperation(addr);
                     }
 
