@@ -149,4 +149,4 @@ Building Source
      
        ufn - unambiguous file name.
      
-       cr  - charage return.
+       cr  - carriage return.
