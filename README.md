@@ -123,17 +123,23 @@ Building Source
   - Uses VSCode and the Pi Pico extension.
 
 - FDC TRS (utility for the TRSDOS related utility)
+  
   - zmac fdc.asm
   - use TRS80GP to import FDC/CMD onto a disk image
+    
     - trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 dmk\ld531-0.dmk -d1 dmk\ld531-1.dmk -i "IMPORT2 FDC.CMD FDC/CMD:1\r"
 
 - FDC CP/M (utility for the CP/M related utility)
   1. Compile program into a hex file.
+  
        zmac fdc.asm
-  2. Run TRS80GP loading the CP/M disk images.
+     
+  3. Run TRS80GP loading the CP/M disk images.
+     
        start trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 CPM141-0.dmk -d1 CPM141-1.dmk -d2 CPM141-2.dmk
-  3. Select Load from TRS80GP File menu and select the hex file.
-  4. Run "SAVE 20 B:FDC.COM" to save program memory contents to a .com file.
+     
+  5. Select Load from TRS80GP File menu and select the hex file.
+  6. Run "SAVE 20 B:FDC.COM" to save program memory contents to a .com file.
      As the program grows you will need to increase the value after SAVE.
 
      SAVE n ufn cr
