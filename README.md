@@ -1,3 +1,4 @@
+########################################################################
 Floppy 80 for the TRS-80 Model I
 
 The Floppy80-M1 emulates the following features of the Expansion Interface
@@ -37,6 +38,7 @@ vitual hard drive images
 - these are virtual hard drive images with a specific file format.
   They are used by the FreHD and TRS80-GP.
 
+########################################################################
 FDC utility
 - Is a utility to interact with the Floppy80 from within the
   TRS-80 Model I operating environment.  Versions of FDC exist
@@ -111,4 +113,27 @@ FDC utility
   FDC IMP filename.exe:n
   - imports the specified file from the root folder of the
     FAT32 formated SD-Card to the disk image indicated by n.
- 
+
+########################################################################
+Building Source
+- Floppy80 firmware
+  - Uses VSCode and the Pi Pico extension.
+
+- FDC TRS (utility for the TRSDOS related utility)
+  - zmac fdc.asm
+  - use TRS80GP to import FDC/CMD onto a disk image
+    - trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 dmk\ld531-0.dmk -d1 dmk\ld531-1.dmk -i "IMPORT2 FDC.CMD FDC/CMD:1\r"
+
+- FDC CP/M (utility for the CP/M related utility)
+  1. Compile program into a hex file.
+       zmac fdc.asm
+  2. Run TRS80GP loading the CP/M disk images.
+       start trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 CPM141-0.dmk -d1 CPM141-1.dmk -d2 CPM141-2.dmk
+  3. Select Load from TRS80GP File menu and select the hex file.
+  4. Run "SAVE 20 B:FDC.COM" to save program memory contents to a .com file.
+     As the program grows you will need to increase the value after SAVE.
+
+     SAVE n ufn cr
+       n   - number of 256-byte pages to be saved.
+       ufn - unambiguous file name.
+       cr  - charage return.
