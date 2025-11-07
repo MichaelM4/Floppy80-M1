@@ -428,6 +428,10 @@ void __not_in_flash_func(service_memory)(void)
         {
             ServicePortOut(addr);
         }
+        else if ((addr >= VIDEO_ADDR_START) && (addr <= VIDEO_ADDR_END))
+        {
+            ServiceVideoMemoryOperation(addr);
+        }
         else if (addr >= 0x8000)
         {
             // set_gpio(WAIT_PIN);
