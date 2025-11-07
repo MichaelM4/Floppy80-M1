@@ -1,2 +1,2 @@
 
-void service_memory(void);
+void __not_in_flash_func(service_memory)(void);

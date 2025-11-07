@@ -1,18 +1,18 @@
 
-     OS              Boots   Format   Copy   FDC/CMD
-----------------------------------------------------
-CPM 1.4.1 (Lifeboat)  Yes      Yes     Yes    Yes
-CPM 1.5 (FMG)         Yes      Yes     Yes    Yes
-Double DOS 4.2.4      Yes      Yes     Yes    Yes
-DOS Plus 3.50         Yes      Yes     Yes    Yes
-LDOS 5.3.1            Yes      Yes     Yes    Yes
-MultiDOS 4.01         Yes      Yes     Yes    Yes
-NEWDOS 3.0            Yes      Yes     Yes    Yes
-NEWDOS 80 V2.0        Yes      Yes     Yes    Yes
-TRSDOS 2.3            Yes      Yes     Yes    Yes
-UltraDOS 4.2.0        Yes      Yes     Yes    Yes
-VTDOS 3.0.0           Yes      Yes     Yes    Yes
-VTDOS 4.0.1           Yes      Yes     Yes    Yes
+     OS              Boots   Format   Copy  Backup FDC/CMD
+----------------------------------------------------------
+CPM 1.4.1 (Lifeboat)  Yes      Yes     Yes    NA     Yes
+CPM 1.5 (FMG)         Yes      Yes     Yes    NA     Yes
+Double DOS 4.2.4      Yes      Yes     Yes    NA     Yes
+DOS Plus 3.50         Yes      Yes     Yes    Yes    Yes
+LDOS 5.3.1            Yes      Yes     Yes    Yes    Yes
+MultiDOS 4.01         Yes      Yes     Yes    Yes    Yes
+NEWDOS 3.0            Yes      Yes     Yes    NA     Yes
+NEWDOS 80 V2.0        Yes      Yes     Yes    NA     Yes
+TRSDOS 2.3            Yes      Yes     Yes    Yes    Yes
+UltraDOS 4.2.0        Yes      Yes     Yes    NA     Yes
+VTDOS 3.0.0           Yes      Yes     Yes    Yes    Yes
+VTDOS 4.0.1           Yes      Yes     Yes    Yes    Yes
 
 --------------------
 - CPM 1.4.1 (Lifeboat)
@@ -44,6 +44,8 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
   - works, provided you start with a double sides dmk file.
   COPY
   - COPY FDC/CMD:0 FDC/CMD:2
+  BACKUP
+  - works as long as disk doubler is disabled
 
 - LDOS 5.3.1
   FORMAT
@@ -56,6 +58,8 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
 - MultiDOS 4.01
   FORMAT
   - works
+  BACKUP
+  - works as long as disk doublers are disabled
 
 - NEWDOS 3.0
   FORMAT
@@ -86,12 +90,16 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
   - works
   COPY
   - COPY FDC/CMD:1 FDC/CMD:2
+  BACKUP
+  - Different Pack IDs
 
 - VTDOS 4.0.1
   FORMAT
   - works
   COPY
   - COPY FDC/CMD:1 FDC/CMD:2
+  BACKUP
+  - works as long as disk doubler is disabled
 
 - SB-M1-RPM
   Access FDC by pressing break and entering

@@ -92,6 +92,9 @@
         "pio.h": "c",
         "multicore.h": "c",
         "spi.h": "c"
+        "ff.h": "c",
+        "hw_config.h": "c",
+        "defines.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": false
 }

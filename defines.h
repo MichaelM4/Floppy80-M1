@@ -114,6 +114,7 @@ typedef unsigned long      	dword;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define get_gpio_data_byte() (sio_hw->gpio_in >> D0_PIN)
+#define get_gpio_read_bus()  (sio_hw->gpio_in >> IN_PIN)
 #define get_gpio(gpio)       (sio_hw->gpio_in & (1u << gpio))
 #define set_gpio(gpio)        sio_hw->gpio_set = 1u << gpio
 #define clr_gpio(gpio)        sio_hw->gpio_clr = 1u << gpio
@@ -157,8 +158,7 @@ typedef unsigned long      	dword;
 typedef struct {
 	uint8_t type;
 	uint8_t val;
-  uint8_t op1;
-  uint8_t op2;
+	uint8_t op1;
 } LogType;
 
 #define LOG_SIZE 4096
@@ -178,6 +178,8 @@ enum {
 	read_sector,
 	read_track,
 	read_status,
+	port_out,
+	port_in
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -211,6 +213,7 @@ enum {
 // counter for real time clock (RTC).
 
 extern volatile uint8_t sd_byCardInialized;
+extern volatile byte    g_byFdcIntrActive;
 extern volatile byte    g_byRtcIntrActive;
 extern volatile byte    g_byResetActive;
 extern volatile byte    g_byEnableIntr;

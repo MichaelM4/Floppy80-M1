@@ -335,6 +335,8 @@ typedef struct {
 
 	BYTE  byCrcError;
 	BYTE  byReadData;
+
+	BYTE  byEnableDoubler;
 } FdcType;
 
 #define FDC_REQUEST_SIZE 0x200
@@ -394,13 +396,7 @@ byte fdc_read_sector(void);
 byte fdc_read_data(void);
 
 void fdc_write_drive_select(byte byData);
-byte fdc_read_drive_select(void);
 void fdc_process_command_request(byte by);
-
-void fdc_put_response_byte(word addr, byte data);
-byte fdc_get_response_byte(word addr);
-void fdc_put_request_byte(word addr, byte data);
-byte fdc_get_request_byte(word addr);
 
 #ifdef __cplusplus
 }

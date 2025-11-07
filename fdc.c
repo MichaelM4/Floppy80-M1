@@ -14,6 +14,7 @@
 #include "system.h"
 #include "crc.h"
 #include "fdc.h"
+#include "hdc.h"
 
 // #pragma GCC optimize ("Og")
 
@@ -27,11 +28,7 @@
 	#define __not_in_flash_func(x) x
 #endif
 
-#ifdef ENABLE_LOGGING
-	LogType fdc_log[LOG_SIZE];
-	int log_head = 0;
-	int log_tail = 0;
-#endif
+// #undef ENABLE_LOGGING
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -207,8 +204,8 @@ SectorType   g_stSector;
 
 static char        g_szBootConfig[80];
 
-static BufferType  g_bFdcRequest;
-static BufferType  g_bFdcResponse;
+BufferType  g_bFdcRequest;
+BufferType  g_bFdcResponse;
 
 #ifndef MFC
 	static DIR     g_dj;				// Directory object
@@ -253,7 +250,6 @@ volatile BYTE	g_byIntrRequest;		// controls the INTRQ output pin.  Which simulat
 	volatile byte     g_byEnableIntr;
 	volatile byte     g_bStopFdc;
 #else
-	volatile byte     g_byFdcIntrActive;
 	volatile int32_t  g_nRotationCount;
 	volatile uint32_t g_nMotorOnTimer;
 #endif
@@ -335,9 +331,9 @@ void __not_in_flash_func(FdcUpdateStatus)(void)
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
-	if ((nDrive < 0) || (g_dtDives[nDrive].f == NULL))
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
 	{
-		byStatus = F_NOTREADY | F_HEADLOAD;
+		byStatus = F_NOTREADY; // | F_HEADLOAD;
 	}
 	else if ((g_FDC.byCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
              (g_FDC.byCommandType == 4))   // Force Interrupt
@@ -825,11 +821,6 @@ void FdcReadDmkTrack(int nDrive, int nSide, int nTrack)
 	g_tdTrack.nTrack     = nTrack;
 	g_tdTrack.nTrackSize = g_dtDives[nDrive].dmk.wTrackLength;
 
-	if (nDrive == 2)
-	{
-		nDrive = 2;
-	}
-
 	WORD  wIDAM   = FdcGetIDAM(0);
 	int   nOffset = wIDAM & 0x3FFF;
 	BYTE* pby = g_tdTrack.byTrackData + nOffset;
@@ -945,7 +936,7 @@ int FdcReadDmkSector1771(int nDriveSel, int nSide, int nTrack, int nSector)
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
 	
-	if (nDrive < 0)
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
 	{
 		return FDC_INVALID_DRIVE;
 	}
@@ -1078,7 +1069,7 @@ void FdcReadDmkSector1791(int nDriveSel, int nSide, int nTrack, int nSector)
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
 	
-	if (nDrive < 0)
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
 	{
 		return;
 	}
@@ -1160,7 +1151,7 @@ void FdcReadHfeSector(int nDriveSel, int nSide, int nTrack, int nSector)
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
 	
-	if (nDrive < 0)
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
 	{
 		return;
 	}
@@ -1205,6 +1196,11 @@ void FdcReadSector(int nDriveSel, int nSide, int nTrack, int nSector)
 	int nDrive;
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
 
 	FdcReadTrack(nDrive, nSide, nTrack);
 
@@ -1345,6 +1341,18 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	else if ((strcmp(szLabel, "DRIVE3") == 0) && (MAX_DRIVES > 3))
 	{
 		CopyString(psz, g_dtDives[3].szFileName, sizeof(g_dtDives[3].szFileName)-2);
+	}
+	else if ((strcmp(szLabel, "HD0") == 0) && (MAX_VHD_DRIVES > 0))
+	{
+		HdcInitFileName(0, psz);
+	}
+	else if ((strcmp(szLabel, "HD1") == 0) && (MAX_VHD_DRIVES > 1))
+	{
+		HdcInitFileName(1, psz);
+	}
+	else if (strcmp(szLabel, "DOUBLER") == 0)
+	{
+		g_FDC.byEnableDoubler = atoi(psz);
 	}
 }
 
@@ -1509,6 +1517,11 @@ void FdcProcessRestoreCommand(void)
 	g_FDC.byCommandType = 1;
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
+
 	if (g_FDC.byCommandReg & 0x08) // h == 1?
 	{
 		FdcSetFlag(eHeadLoaded);
@@ -1588,6 +1601,13 @@ void FdcProcessSeekCommand(void)
 	}
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		FdcSetFlag(eNotReady);
+		FdcClrFlag(eBusy);
+		return;
+	}
 	
 	if (nDrive != g_tdTrack.nDrive)
 	{
@@ -1649,6 +1669,11 @@ void FdcProcessStepCommand(void)
 	}
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
 
 	if ((g_FDC.byCurCommand & 0x04) != 0) // perform verification
 	{
@@ -1723,6 +1748,11 @@ void FdcProcessStepInCommand(void)
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 	
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
+
 	if (nDrive != g_tdTrack.nDrive)
 	{
 		g_tdTrack.nDrive = -1;
@@ -1786,6 +1816,11 @@ void FdcProcessStepOutCommand(void)
 
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 	
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
+
 	if (nDrive != g_tdTrack.nDrive)
 	{
 		g_tdTrack.nDrive = -1;
@@ -1818,6 +1853,11 @@ void FdcProcessReadSectorCommand(void)
 	int nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 2;
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
 
 	FdcReadSector(g_FDC.byDriveSel, nSide, g_FDC.byTrack, g_FDC.bySector);
 
@@ -1891,6 +1931,11 @@ void FdcProcessWriteSectorCommand(void)
 	uint8_t address_mark_dd[] = {0xFB, 0xF8};
 
 	g_FDC.byCommandType = 2;
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
 
 	if (g_tdTrack.byDensity == eDD)
 	{
@@ -2001,6 +2046,12 @@ void FdcProcessReadTrackCommand(void)
 	int nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 3;
+
+	if ((nDrive < 0) || (nDrive >= MAX_DRIVES) || (g_dtDives[nDrive].f == NULL))
+	{
+		return;
+	}
+
 	FdcSetFlag(eHeadLoaded);
 
 	g_tdTrack.nTrack = 255;
@@ -2856,44 +2907,31 @@ void FdcProcessStatusRequest(byte print)
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_szBootConfig);
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 
-	if (g_byBootConfigModified)
+	file* f;
+	int   nLen;
+
+	f = FileOpen(g_szBootConfig, FA_READ);
+	
+	if (f == NULL)
 	{
-		file* f;
-		int   nLen;
-
-		f = FileOpen(g_szBootConfig, FA_READ);
-		
-		if (f == NULL)
-		{
-			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Unable to open specified ini file");
-		}
-		else
-		{
-			nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
-			
-			while (nLen >= 0)
-			{
-				if (nLen > 2)
-				{
-					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
-					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
-				}
-
-				nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
-			}
-			
-			FileClose(f);
-		}
+		strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Unable to open specified ini file");
 	}
 	else
 	{
-		for (i = 0; i < MAX_DRIVES; ++i)
+		nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
+		
+		while (nLen >= 0)
 		{
-			sprintf_s(szBuf, sizeof(szBuf)-1, "%d: ", i);
-			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szBuf);
-			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_dtDives[i].szFileName);
-			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+			if (nLen > 2)
+			{
+				strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+				strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+			}
+
+			nLen = FileReadLine(f, szBuf, sizeof(szBuf)-2);
 		}
+		
+		FileClose(f);
 	}
 
 	if (print)
@@ -3309,8 +3347,8 @@ void FdcRestore()
 
 			++g_FDC.nServiceState;
 
-			FdcClrFlag(eBusy);
 			g_FDC.byTrack = 0;
+			FdcClrFlag(eBusy);
 			FdcGenerateIntr();
 			g_FDC.nProcessFunction = psIdle;
 			break;
@@ -3372,81 +3410,65 @@ void FdcServiceStateMachine(void)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
-	if (byData == 0xFE) // Percom doubler
-	{
-		if (g_FDC.byDoublerType != eRsDoubler)
-		{
-			g_FDC.byDoublerDensity = 0;
-			g_FDC.byDoublerType = ePcDoubler;
-		}
-	}
-	else if (byData == 0xFF) // Percom doubler
-	{
-		if (g_FDC.byDoublerType != eRsDoubler)
-		{
-			g_FDC.byDoublerDensity = 1;
-			g_FDC.byDoublerType = ePcDoubler;
-		}
-	}
-	else
-	{
-		g_FDC.byCommandReg = byData;
-
-		if (g_byIntrRequest)
-		{
-			g_byIntrRequest = 0;
-			g_byFdcIntrActive = false;
-		}
-
-		g_FDC.status.byBusy = 1;
-		g_FDC.byStatus      = F_BUSY;
-		g_FDC.byCommandReceived = 1;
-
-		if (byData == 0xF4)
-		{
-			g_nRotationCount = g_dwIndexTime + 1;
-			g_FDC.status.byIndex = 0;
-			g_FDC.byStatus  &= ~F_INDEX;
-		}
-	}
-
 #ifdef ENABLE_LOGGING
 	fdc_log[log_head].type = write_cmd;
 	fdc_log[log_head].val = byData;
-
-	if ((byData & 0xF0) == 0x10) // 0001xxxx
-	{
-		fdc_log[log_head].op1 = g_FDC.byData;
-		fdc_log[log_head].op2 = g_FDC.byTrack;
-	}
-	else if ((byData & 0xF0) == 0x80) // 1000xxxx
-	{
-		fdc_log[log_head].op1 = g_FDC.byTrack;
-		fdc_log[log_head].op2 = g_FDC.bySector;
-	}
-	else if ((byData & 0xF0) == 0xA0) // 1010xxxx
-	{
-		fdc_log[log_head].op1 = g_FDC.byTrack;
-		fdc_log[log_head].op2 = g_FDC.bySector;
-	}
-	else if ((byData & 0xFE) == 0xE4) // 1110010x
-	{
-		fdc_log[log_head].op1 = g_FDC.byTrack;
-	}
-	else if (byData == 0xF0) // 11110000
-	{
-		fdc_log[log_head].op1 = g_FDC.byDriveSel;
-		fdc_log[log_head].op2 = g_FDC.byTrack;
-	}
-	else if (byData == 0xF4) // 11110100
-	{
-		fdc_log[log_head].op1 = g_FDC.byDriveSel;
-		fdc_log[log_head].op2 = g_FDC.byTrack;
-	}
-
 	++log_head;
 	log_head = log_head % LOG_SIZE;
 #endif
+
+#ifdef ENABLE_DOUBLER
+	if (g_FDC.byEnableDoubler)
+	{
+		if (byData == 0xFE) // Percom doubler
+		{
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 0;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
+			
+			return;
+		}
+		else if (byData == 0xFF) // Percom doubler
+		{
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 1;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
+
+			return;
+		}
+	}
+#endif
+
+	g_FDC.byCommandReg = byData;
+
+	if (g_byIntrRequest)
+	{
+		g_byIntrRequest = 0;
+		g_byFdcIntrActive = false;
+	}
+
+	g_FDC.status.byBusy = 1;
+	g_FDC.byStatus      = F_BUSY;
+	g_FDC.byCommandReceived = 1;
+
+	if ((byData & 0xF0) == 0) // Restore command
+	{
+		if (byData & 0x08) // load head now
+		{
+			g_FDC.byStatus |= F_HEADLOAD;
+			g_FDC.status.byHeadLoaded = 1;
+		}
+	}
+	else if (byData == 0xF4)
+	{
+		g_nRotationCount = g_dwIndexTime + 1;
+		g_FDC.status.byIndex = 0;
+		g_FDC.byStatus  &= ~F_INDEX;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -3468,33 +3490,36 @@ void __not_in_flash_func(fdc_write_sector)(byte byData)
 	g_FDC.bySector = byData;
 
 #ifdef ENABLE_DOUBLER
-	if (g_FDC.byDoublerType != ePcDoubler)
+	if (g_FDC.byEnableDoubler)
 	{
-		if (byData >= 0xE0)
+		if (g_FDC.byDoublerType != ePcDoubler)
 		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0xC0)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0xA0)
-		{
-			g_FDC.byDoublerDensity = 0;
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x80)
-		{
-			g_FDC.byDoublerDensity = 1;
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x60)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x40)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
+			if (byData >= 0xE0)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0xC0)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0xA0)
+			{
+				g_FDC.byDoublerDensity = 0;
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x80)
+			{
+				g_FDC.byDoublerDensity = 1;
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x60)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x40)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
 		}
 	}
 #endif
@@ -3640,18 +3665,6 @@ byte __not_in_flash_func(fdc_read_data)(void)
 			if (g_FDC.byMultipleRecords)
 			{
 				++g_FDC.bySector;
-// #ifdef ENABLE_LOGGING
-// 				sprintf_s(g_szRwBuf, sizeof(g_szRwBuf)-1, "RD NEXT SECTOR %02X", g_FDC.bySector);
-
-// 				#ifdef MFC
-// 					strcat_s(g_szRwBuf, sizeof(g_szRwBuf)-1, "\r\n");
-// 					WriteLogFile(g_szRwBuf);
-// 				#else
-// 					puts(g_szRwBuf);
-// 				#endif
-
-// 				g_szRwBuf[0] = 0;
-// #endif
 				g_FDC.byCommandReg = 0x98;
 
 				if (g_byIntrRequest)
@@ -3727,84 +3740,4 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 
 	g_FDC.byDriveSel = byData;
 	g_nMotorOnTimer  = 2000000;
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_read_drive_select)(void)
-{
-	byte byRet = g_byDriveStatus;
-
-#ifdef ENABLE_LOGGING
-	fdc_log[log_head].type = read_drive_select;
-	fdc_log[log_head].val = g_byDriveStatus;
-	++log_head;
-	log_head = log_head % LOG_SIZE;
-#endif
-
-	if (g_byRtcIntrActive)
-	{
-		g_byRtcIntrActive = false;
-		byRet |= 0x80;
-
-        // release INT line if the interrupt was cause by the RTC
-		if (!g_byFdcIntrActive)
-		{
-			// deactivate intr
-			clr_gpio(INT_PIN);
-		}
-	}
-
-	return byRet;
-}
-
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_put_response_byte)(word addr, byte data)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		g_bFdcResponse.cmd[addr] = data;
-	}
-	else
-	{
-		g_bFdcResponse.buf[addr-FDC_CMD_SIZE] = data;
-	}
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_get_response_byte)(word addr)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		return g_bFdcResponse.cmd[addr];
-	}
-	else
-	{
-		return g_bFdcResponse.buf[addr-FDC_CMD_SIZE];
-	}
-}
-
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_put_request_byte)(word addr, byte data)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		g_bFdcRequest.cmd[addr] = data;
-	}
-	else
-	{
-		g_bFdcRequest.buf[addr-FDC_CMD_SIZE] = data;
-	}
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_get_request_byte)(word addr)
-{
-	if (addr < FDC_CMD_SIZE)
-	{
-		return g_bFdcRequest.cmd[addr];
-	}
-	else
-	{
-		return g_bFdcRequest.buf[addr-FDC_CMD_SIZE];
-	}
 }

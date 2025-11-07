@@ -272,7 +272,7 @@ impdone:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; de - address of the File Control Block (FCB) to be initialized
-; lh - address of file specification
+; hl - address of file specification
 fspec:
 	call	441ch
 	ret
