@@ -24,8 +24,8 @@ FINDDMK_CMD   equ 81h
 FINDHFE_CMD   equ 82h
 FINDFMT_CMD   equ 83h
 
-REQUEST_ADDR  equ 3000h
-RESPONSE_ADDR equ 3200h
+REQUEST_ADDR  equ 3400h
+RESPONSE_ADDR equ 3510h
 
 ; to detect equality of a value in A
 ;	cp	<whatever>
@@ -1243,7 +1243,7 @@ exit:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 intro:
-		ascii	'Model I FDC utility version 0.1.1',13
+		ascii	'Model I FDC utility version 0.2.0',13
 		ascii	'Command line options:',13
 		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13
