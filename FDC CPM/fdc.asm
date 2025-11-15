@@ -24,8 +24,8 @@ FINDINI_CMD:   equ 80h
 FINDDMK_CMD:   equ 81h
 FINDHFE_CMD:   equ 82h
 
-REQUEST_ADDR:  equ 3000h
-RESPONSE_ADDR: equ 3200h
+REQUEST_ADDR:  equ 3400h
+RESPONSE_ADDR: equ 3510h
 
 BDOS_CMDLINE1:  equ 0xE607	; Lifeboat CP/M 1.14
 BDOS_CMDLINE2:  equ 0xE807	; FMG CP/M 1.5
@@ -1287,7 +1287,7 @@ exit:
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-intro:		db	'Model I FDC utility version 0.0.7',13,10
+intro:		db	'Model I FDC utility version 0.0.8',13,10
 		db	'Command line options:',13,10
 		db	'STA - get status (firmware version, mounted disks, etc.).',13,10
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13,10

@@ -227,8 +227,8 @@ void TestSdCardInsertion(void)
 		if (sd_byCurrentCdState == 0)		// card is not present
 		{
 			sd_byCardInialized = FALSE;
-		    multicore_reset_core1();
-			reset_system();
+		    // multicore_reset_core1();
+			// reset_system();
 		}
 	}
 
