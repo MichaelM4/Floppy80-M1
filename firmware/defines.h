@@ -218,6 +218,7 @@ extern volatile byte    g_byRtcIntrActive;
 extern volatile byte    g_byResetActive;
 extern volatile byte    g_byEnableIntr;
 extern volatile int32_t g_nRotationCount;
+extern volatile byte    g_byEnableUpperMem;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

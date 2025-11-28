@@ -1354,6 +1354,10 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	{
 		g_FDC.byEnableDoubler = atoi(psz);
 	}
+	else if (strcmp(szLabel, "MEM") == 0)
+	{
+		g_byEnableUpperMem = atoi(psz);
+	}
 }
 
 //-----------------------------------------------------------------------------

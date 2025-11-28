@@ -20,6 +20,7 @@ volatile byte g_byFdcIntrActive;
 volatile byte g_byRtcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
+volatile byte g_byEnableUpperMem;
 
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(FinishReadOperation)(byte data)
@@ -403,7 +404,10 @@ void __not_in_flash_func(service_memory)(void)
         else if (addr >= 0x8000)
         {
             // set_gpio(WAIT_PIN);
-            ServiceHighMemoryOperation(addr);
+            if (g_byEnableUpperMem)
+            {
+                ServiceHighMemoryOperation(addr);
+            }
         }
         else
         {

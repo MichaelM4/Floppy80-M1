@@ -23,12 +23,14 @@ ini files
 - specifies the disk images and options after reset.
 
   ini options
-  - Drive0 - specified the image to load for drive :0
-  - Drive1 - specified the image to load for drive :1
-  - Drive2 - specified the image to load for drive :2
-  - HD0 - specifies the image to load for tyhe first hard drive
-  - HD1 - specifies the image to load for tyhe second hard drive
+  - Drive0  - specified the image to load for drive :0
+  - Drive1  - specified the image to load for drive :1
+  - Drive2  - specified the image to load for drive :2
+  - HD0     - specifies the image to load for tyhe first hard drive
+  - HD1     - specifies the image to load for tyhe second hard drive
   - Doubler - 1 = doubler is enabled; 0 = doubler is disabled;
+  - Mem     - 0 = disable upper memory; 1 = enable upper memory;
+              if not specified upper memory is enabled by default.
 
 dmk files
 - these are virtual disk images with a specific file format
