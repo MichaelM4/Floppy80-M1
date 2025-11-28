@@ -3,7 +3,7 @@
 Floppy 80 for the TRS-80 Model I
 
 The Floppy80-M1 emulates the following features of the Expansion Interface
-- 32k RAM explansion
+- 32k RAM expansion
 - Up to 3 floppy drives
   - 1 and 2 sided
   - single and double density
@@ -15,7 +15,7 @@ files on the SD-Card inserted in its card reader.
 The files are as follows:
 
 boot.cfg
-- specified the defaul ini file to load at reset of the Floppy80
+- specified the default ini file to load at reset of the Floppy80
   when the floppy 80 boots or is reset it reads the contents of
   the boot.cfg to determine the default configuration ini file.
 
@@ -35,7 +35,7 @@ dmk files
   that allows them to be generated and used with a number
   of existing programs and simulators.
 
-vitual hard drive images
+virtual hard drive images
 - these are virtual hard drive images with a specific file format.
   They are used by the FreHD and TRS80-GP.
 
@@ -73,13 +73,13 @@ FDC utility
     - INI - switches between tyhe differnt ini file on the SD-Card.
     - DMK - allows the mounting of DMK disk images in the root folder
             of the SD-Card for a specified drive (0, 1 or 2).
-    - FOR - copys a DMK disk image from the FOR folder of the SD-Card
+    - FOR - copies a DMK disk image from the FOR folder of the SD-Card
             to one of the mounted disk images (0, 1 or 2).
     - IMP - imports a file from the root folder of the SD-Card
             into one of the mounted disk images (0, 1 or 2).
 
   FDC STA
-  - Displays the contects to the ini file specified by boot.cfg
+  - Displays the contents to the ini file specified by boot.cfg
 
   FDC DIR filter
   - Displays a list of files in the root folder of the SD-Card.
@@ -114,7 +114,7 @@ FDC utility
 
   FDC IMP filename.exe:n
   - imports the specified file from the root folder of the
-    FAT32 formated SD-Card to the disk image indicated by n.
+    FAT32 formatted SD-Card to the disk image indicated by n.
 
 ########################################################################
 
