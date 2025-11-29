@@ -47,17 +47,18 @@ void __not_in_flash_func(reset_system)(void)
 /////////////////////////////////////////////////////////////////////////////////////////////////
 void InitVars(void)
 {
-	g_dwResetTime      = 1000;	// 1ms
-	g_nTimeNow         = time_us_64();
-	g_nPrevTime        = g_nTimeNow;
-	g_nRtcIntrCount    = 0;
-	g_byMonitorReset   = FALSE;
-	g_dwResetCount     = 0;
-	g_byRtcIntrActive  = false;
-	g_byIntrRequest    = 0;
-	g_byResetActive    = true;
-	g_byEnableIntr     = false;
-	g_byEnableUpperMem = true;
+	g_dwResetTime        = 1000;	// 1ms
+	g_nTimeNow           = time_us_64();
+	g_nPrevTime          = g_nTimeNow;
+	g_nRtcIntrCount      = 0;
+	g_byMonitorReset     = FALSE;
+	g_dwResetCount       = 0;
+	g_byRtcIntrActive    = false;
+	g_byIntrRequest      = 0;
+	g_byResetActive      = true;
+	g_byEnableIntr       = false;
+	g_byEnableUpperMem   = true;
+	g_byEnableWaitStates = false;
 
 	memset(&Hdc, 0, sizeof(Hdc));
 	memset(Vhd, 0, sizeof(Vhd));

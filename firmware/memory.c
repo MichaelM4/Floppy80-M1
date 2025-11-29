@@ -21,6 +21,7 @@ volatile byte g_byRtcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 volatile byte g_byEnableUpperMem;
+volatile byte g_byEnableWaitStates;
 
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(FinishReadOperation)(byte data)
@@ -371,6 +372,11 @@ void __not_in_flash_func(service_memory)(void)
             bus = get_gpio_read_bus();
         } while ((bus & 0x1F) == 0x1F);
 
+        if (g_byEnableWaitStates)
+        {
+            set_gpio(WAIT_PIN);
+        }
+
         addr = (bus >> (D0_PIN - IN_PIN)) & 0xFF;
         set_gpio(ADDRL_OE_PIN);
         clr_gpio(ADDRH_OE_PIN);
@@ -391,8 +397,6 @@ void __not_in_flash_func(service_memory)(void)
         addr = addr + ((get_gpio_data_byte() & 0xFF) << 8);
         set_gpio(ADDRH_OE_PIN);
 
-        // set_gpio(WAIT_PIN);
-
         if (!(bus & 0x01))
         {
             ServicePortIn(addr);
@@ -403,7 +407,6 @@ void __not_in_flash_func(service_memory)(void)
         }
         else if (addr >= 0x8000)
         {
-            // set_gpio(WAIT_PIN);
             if (g_byEnableUpperMem)
             {
                 ServiceHighMemoryOperation(addr);
@@ -440,12 +443,10 @@ void __not_in_flash_func(service_memory)(void)
                 default:
                     if ((addr >= FDC_REQUEST_ADDR_START) && (addr <= FDC_REQUEST_ADDR_STOP))
                     {
-                        // set_gpio(WAIT_PIN);
                         ServiceFdcRequestOperation(addr);
                     }
                     else if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP))
                     {
-                        // set_gpio(WAIT_PIN);
                         ServiceFdcResponseOperation(addr);
                     }
 

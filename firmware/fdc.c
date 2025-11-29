@@ -1356,6 +1356,10 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	{
 		g_byEnableUpperMem = atoi(psz);
 	}
+	else if (strcmp(szLabel, "WAIT") == 0)
+	{
+		g_byEnableWaitStates = atoi(psz);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2987,9 +2991,10 @@ void FdcProcessFindFirst(char* pszFilter, char* pszFolder)
 
 	while ((fr == FR_OK) && (g_fno.fname[0] != 0) && (g_nFindCount < FIND_MAX_SIZE))
 	{
-		if ((g_fno.fattrib & AM_DIR) || (g_fno.fattrib & AM_SYS))
+		if ((g_fno.fattrib & AM_DIR) || (g_fno.fattrib & AM_SYS) || (g_fno.fname[0] == '.'))
 		{
 			// pcAttrib = pcDirectory;
+			// skip Linux Hidden File (filename starts with '.')
 		}
 		else
 		{
