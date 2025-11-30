@@ -14,6 +14,16 @@ Configuration of the Floppy80-M1 is performed with the placement of
 files on the SD-Card inserted in its card reader.
 The files are as follows:
 
+system.cfg
+- specifies system level options.  These are option that are not dependent
+  of the ini file loaded.
+
+  cfg options
+  - Mem  - 0 = disable upper memory; 1 = enable upper memory;
+           if not specified upper memory is enabled by default.
+  - Wait - 0 = disable bus wait states; 1 = enable bus wait states.
+           if not specified wait states are disable by default.
+
 boot.cfg
 - specified the default ini file to load at reset of the Floppy80
   when the floppy 80 boots or is reset it reads the contents of
@@ -29,10 +39,6 @@ ini files
   - HD0     - specifies the image to load for tyhe first hard drive
   - HD1     - specifies the image to load for tyhe second hard drive
   - Doubler - 1 = doubler is enabled; 0 = doubler is disabled;
-  - Mem     - 0 = disable upper memory; 1 = enable upper memory;
-              if not specified upper memory is enabled by default.
-  - Wait    - 0 = disable bus wait states; 1 = enable bus wait states.
-              if not specified wait states are disable by default.
 
 dmk files
 - these are virtual disk images with a specific file format

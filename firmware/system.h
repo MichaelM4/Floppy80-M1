@@ -19,6 +19,8 @@
 
 void reset_system(void);
 
+void SysInit(void);
+
 void OpenLogFile(void);
 void CloseLogFile(void);
 void WriteLogFile(char* psz);

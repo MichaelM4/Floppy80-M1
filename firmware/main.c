@@ -185,6 +185,7 @@ int main()
     InitVars();
     SDHC_Init();
     FileSystemInit();
+    SysInit();
     FdcInit();
     HdcInit();
     InitCli();

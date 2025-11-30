@@ -1352,14 +1352,6 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	{
 		g_FDC.byEnableDoubler = atoi(psz);
 	}
-	else if (strcmp(szLabel, "MEM") == 0)
-	{
-		g_byEnableUpperMem = atoi(psz);
-	}
-	else if (strcmp(szLabel, "WAIT") == 0)
-	{
-		g_byEnableWaitStates = atoi(psz);
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2939,6 +2931,14 @@ void FdcProcessStatusRequest(byte print)
 		
 		FileClose(f);
 	}
+
+	sprintf(szBuf, "MEM=%d", g_byEnableUpperMem);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+
+	sprintf(szBuf, "WAIT=%d", g_byEnableWaitStates);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 
 	if (print)
 	{

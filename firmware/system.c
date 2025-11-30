@@ -351,3 +351,53 @@ void UpdateCounters(void)
 		g_byMonitorReset = TRUE;
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////
+void SysProcessConfigEntry(char szLabel[], char* psz)
+{
+	if (strcmp(szLabel, "MEM") == 0)
+	{
+		g_byEnableUpperMem = atoi(psz);
+	}
+	else if (strcmp(szLabel, "WAIT") == 0)
+	{
+		g_byEnableWaitStates = atoi(psz);
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void SysInit(void)
+{
+	file* f;
+	char  szLine[64];
+	char  szSection[16];
+	char  szLabel[32];
+	char* psz;
+	int   nLen;
+
+	// read the default ini file to load on init
+	f = FileOpen("system.cfg", FA_READ);
+	
+	if (f == NULL)
+	{
+		return;
+	}
+
+	nLen = FileReadLine(f, (BYTE*)szLine, sizeof(szLine)-2);
+	
+	while (nLen >= 0)
+	{
+		psz = SkipBlanks(szLine);
+		
+		if ((*psz != 0) && (*psz != ';')) // blank line or a comment line
+		{
+			StrToUpper(psz);
+			psz = CopyLabelName(psz, szLabel, sizeof(szLabel)-2);
+			SysProcessConfigEntry(szLabel, psz);
+		}
+
+		nLen = FileReadLine(f, (BYTE*)szLine, 126);
+	}
+	
+	FileClose(f);	
+}
