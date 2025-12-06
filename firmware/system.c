@@ -376,6 +376,10 @@ void SysProcessConfigEntry(char szLabel[], char* psz)
 	{
 		g_byEnableWaitStates = atoi(psz);
 	}
+	else if (strcmp(szLabel, "VHD") == 0)
+	{
+		g_byEnableVhd = atoi(psz);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

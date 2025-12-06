@@ -223,6 +223,7 @@ extern volatile int32_t  g_nRotationCount;
 extern volatile byte     g_byEnableUpperMem;
 extern volatile byte     g_byEnableWaitStates;
 extern volatile uint32_t g_dwLedCount;
+extern volatile byte     g_byEnableVhd;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

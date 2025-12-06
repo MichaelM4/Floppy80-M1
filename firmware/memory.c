@@ -22,6 +22,7 @@ volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 volatile byte g_byEnableUpperMem;
 volatile byte g_byEnableWaitStates;
+volatile byte g_byEnableVhd = true;
 
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(FinishReadOperation)(byte data)
@@ -298,7 +299,7 @@ void __not_in_flash_func(ServicePortIn)(word addr)
 
     addr = addr & 0xFF;
 
-    if ((addr < 0xC0) || (addr > 0xCF))
+    if ((addr < 0xC0) || (addr > 0xCF) || (g_byEnableVhd == 0))
     {
         return;
     }
@@ -318,7 +319,7 @@ void __not_in_flash_func(ServicePortOut)(word addr)
 
     addr = addr & 0xFF;
 
-    if ((addr < 0xC0) || (addr > 0xCF))
+    if ((addr < 0xC0) || (addr > 0xCF) || (g_byEnableVhd == 0))
     {
         return;
     }
