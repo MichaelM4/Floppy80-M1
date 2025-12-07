@@ -22,7 +22,7 @@ system.cfg
   - Mem  - 0 = disable upper memory; 1 = enable upper memory;
            if not specified upper memory is enabled by default.
   - Wait - 0 = disable bus wait states; 1 = enable bus wait states.
-           if not specified wait states are disable by default.
+           if not specified wait states are disabled by default.
   - Vhd  - 0 = disable hard disk emulation; 1 = enable hard disk emulation;
            if not specified hard disk emulation is enabled by default.
 

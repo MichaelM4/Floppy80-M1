@@ -10,11 +10,15 @@ the following features of the Expansion Interface
   - single and double-sided
   - up to 90 cylinders
   - DMK disk format supported
-- A Hard Disk Controller
-  - supports up to 2 hard drives
-  - Uses same image format as FreHD 
 - 32k RAM expansion (optional)
 - 40Hz RTC interrupt generation
+
+Additionally, the following features are provided:
+- A Hard Disk Controller (optional)
+  - supports up to 2 hard drives
+  - Uses same image format as FreHD
+- Wait State Generation (optional)
+- Software Debugging Interface
 
 An SD card is required to store disk images and configuration data
 
@@ -32,8 +36,15 @@ The software provided includes 2 main components
 * Firmware running on Raspberry Pi, that provides the emulation
 * FDC Utility (TRS DOS, and CPM) running on TRS-80 for emulator control
 
-See the [Separate Guide](BUILDING.md) for building the Floppy-80 software
+See the separate [Software Build Guide](BUILDING.md) for details on 
+building the Floppy-80 software
 
 ## User Guide
 
-For User Instructions please see the seperate User Guide
+For User Instructions please see the separate [User Guide](USER-GUIDE.md)
+
+## Credits
+
+## Resources
+
+

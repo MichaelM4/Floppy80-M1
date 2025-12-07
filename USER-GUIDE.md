@@ -1,4 +1,4 @@
-# Floppy 80 (Model I) User Guide
+# Floppy 80 (M1) User Guide
 
 ## Configuration
 
@@ -14,11 +14,13 @@ not generally supported. The files are as follows:
 This file contains global configuraton settings. The file and settings are
 optional and all have meaninful defaults The settings are:
 * MEM - Used to enable / disable 32KB RAM; 1 = enabled (default); 0 = disabled
+* VHD - Used to enable / disable Hard Disk; 1 = enabled (default); 0 = disabled
 * WAIT - Used to enable / disable wait states 1 = enabled; 0 = disabled (default)
 
 e.g.
 ```
 MEM=1
+VHD=0
 WAIT=0
 ```
 

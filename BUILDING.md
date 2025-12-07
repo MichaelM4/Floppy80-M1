@@ -1,5 +1,5 @@
 
-# Floppy 80 (Model I) Software Build
+# Floppy 80 (M1) Software Build
 
 ## Floppy80 firmware
 
@@ -38,7 +38,7 @@ These are DEV resources:
 FDC TRS (utility for the TRSDOS related utility)
 
 ```
-cd FDC\ TRS`
+cd FDC_TRS`
 zmac fdc.asm
 ```
 
@@ -55,7 +55,7 @@ FDC CP/M (utility for the CP/M related utility)
 Compile program into a hex file.
 
 ```
-cd FDC\ CPM`
+cd FDC_CPM`
 zmac fdc.asm
 ```
 
