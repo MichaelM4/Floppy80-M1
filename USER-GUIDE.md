@@ -186,8 +186,51 @@ Format works.
 
 BACKUP - Different Pack IDs
 
-## VTDOS 4.0.1
+### VTDOS 4.0.1
 
 Format works.
 
 Backup works, as long as disk doublers are disabled.
+
+## Debugging
+
+The Firmware provides a debugging interface for logging and diagnosing issues.
+
+While running the Floppy 80 provides a Command Line interface via serial
+over the USB port on the Pi PICO. Simply connect a USB can to a host computer and
+connect a Serial Communications program to the serial port
+
+While the port may appear differently on different operating systems on a Mac
+it appears something like `dev/cu.usbmodem000000`. The port is not a true serial port
+and has no explicit Baud Rate, etc. 
+
+Pressing enter should display a help menu explaining the basic commands.
+A few of the commands have matching `FDC` commands
+
+| COMMAND | FDC     | DESCRIPTION                             |
+|---------|---------|-----------------------------------------|
+| boot f  | FDC INI | Set INI file (f) to use for boot        |
+| disks   |         | Display information about mounted disks |
+| dir f   | FDC DIR | Display a Directory (optional filter)   |
+| dump n  |         | Dump Drive (n) contents                 |
+| hdc     |         | Create a Virtual Hard Disk              |
+| help    |         | Display CLI Help screen                 |
+| logon   |         | Enable FDC Debug Output                 |
+| logoff  |         | Disable FDC Debug Output                |
+| status  | FDC STA | Display Status                          |
+
+Some of the more important commands are described below
+
+### Create Virtual Hard Disks
+
+**t.b.d.**
+
+### Dump Drive Contents
+
+`dump n` - where n is the drive number. Display a complete sector by sector list
+of the chosen (mounted) disk to the console
+
+### Logon / Logoff
+
+Enables or disables the output to the console of FDC debugging activity information
+

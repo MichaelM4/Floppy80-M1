@@ -62,7 +62,7 @@ void ListFiles(char* pszFilter)
 
 	while ((fr == FR_OK) && (fno.fname[0] != 0))
 	{
-		if ((fno.fattrib & AM_DIR) || (fno.fattrib & AM_SYS))
+		if ((fno.fattrib & AM_DIR) || (fno.fattrib & AM_SYS) || (fno.fname[0] == '.'))
 		{
 			// pcAttrib = pcDirectory;
 		}
@@ -285,7 +285,7 @@ void ProcessCommand(char* psz)
         g_bOutputLog = false;
         return;
     }
-    
+
     if (stricmp(szCmd, "DISKS") == 0)
     {
         ProcessDisksRequest();
