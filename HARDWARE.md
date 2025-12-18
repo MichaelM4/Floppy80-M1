@@ -2,26 +2,14 @@
 
 ## Bill of Materials
 
-The components Required are:
+A bill of materials [FDC.csv](/KiCAD/FDC.csv) is provided in the KiCAD folder
 
-| Reference | Qty | Value	             | Footprint                                                   |
-|-----------|-----|---------------------|-------------------------------------------------------------|
-| C1-C9     | 9   | 100nF               | Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm              |
-| D1        | 1   | LED                 | LED_SMD:LED_2816_7142Metric_Pad3.20x4.45mm_HandSolder       |
-| D2        | 1   | PMEG4010CEJ         | Diode_SMD:D_SOD-323F                                        |
-| J2        | 1   | Conn_02x20_Odd_Even | Connector_PinSocket_2.54mm:PinSocket_2x20_P2.54mm_Vertical  |
-| J3        | 1   | SD_Card             | Connector_Card:SD_Kyocera_145638009511859+                  |
-| Q1-Q2     | 2   | SSM3K324RLFCT-ND    | Package_TO_SOT_SMD:SOT-23_Handsoldering                     |
-| R1	     | 1   | 100R                | Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm               |
-| R2,R6,R8	 | 3   | 1K                  | Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm               |
-| U1,U3-U5  | 4   | SN74LVCC4245ADWR    | Package_SO:SOIC-24W_7.5x15.4mm_P1.27mm                      |
-| U2        | 1   | Pico2               | MCU_RaspberryPi_and_Boards:RPi_Pico_SMD_TH                  |
-
-The 40 pin connection carries data signals, and gold contact pins should be chosen as a preference.
+Notes:
+* The 40 pin connector carries data signals, gold contacts should be chosen as a preference.
 
 ## Assembly Guide
 
-The board is dual sided, and has SMD components care must be taken
+The board has SMD components on both sides, care must be taken.
 
 The order of assembly, while not definitive, following is advice
 * U1, U3, U4, U5 - Logic IC's on the rear of the board

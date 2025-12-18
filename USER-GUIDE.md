@@ -2,17 +2,17 @@
 
 ## Configuration
 
-An SD Card (FAT formatted), is required to contain the disk images, and configuration
+An SD Card (FAT formatted) is required to contain the disk images, and configuration.
 
 Configuration of the Floppy80-M1 is performed with the placement of
 files on the SD-Card inserted in its card reader. 
-Files are placed in the Root folder (unless noted), sub folders are 
+Files are placed in the Root folder (unless noted), subfolders are 
 not generally supported. The files are as follows:
 
 ### system.cfg
 
-This file contains global configuraton settings. The file and settings are
-optional and all have meaninful defaults The settings are:
+This file contains global configuration settings. The file and settings are
+optional, and all have meaningful defaults The settings are:
 * MEM - Used to enable / disable 32KB RAM; 1 = enabled (default); 0 = disabled
 * VHD - Used to enable / disable Hard Disk; 1 = enabled (default); 0 = disabled
 * WAIT - Used to enable / disable wait states 1 = enabled; 0 = disabled (default)
@@ -30,7 +30,7 @@ Typically, wait states should not be required.
 
 Wait states are useful for overclocked CPU's where the CPU outperforms
 the Floppy emulation, which is optimised for normal CPU speed.
-The issue with wait states it they are known to disrupt
+The issue with wait states is they are known to disrupt
 critical timed operations, such as formatting a floppy disk.
 
 ### boot.cfg
@@ -227,7 +227,7 @@ Some of the more important commands are described below
 
 ### Dump Drive Contents
 
-`dump n` - where n is the drive number. Display a complete sector by sector list
+`dump n` - where n is the drive number. Display a complete sector-by-sector list
 of the chosen (mounted) disk to the console
 
 ### Logon / Logoff
