@@ -226,6 +226,7 @@ extern volatile byte     g_byRtcIntrActive;
 extern volatile byte     g_byResetActive;
 extern volatile byte     g_byEnableIntr;
 extern volatile int32_t  g_nRotationCount;
+extern volatile byte     g_byEnableLowMem;
 extern volatile byte     g_byEnableUpperMem;
 extern volatile byte     g_byEnableWaitStates;
 extern volatile uint32_t g_dwLedCount;

@@ -59,6 +59,7 @@ void InitVars(void)
 	g_byIntrRequest      = 0;
 	g_byResetActive      = true;
 	g_byEnableIntr       = false;
+	g_byEnableLowMem     = false;
 	g_byEnableUpperMem   = true;
 	g_byEnableWaitStates = false;
 	g_dwLedCount         = 0;
@@ -368,7 +369,11 @@ void UpdateCounters(void)
 ////////////////////////////////////////////////////////////////////////////////////
 void SysProcessConfigEntry(char szLabel[], char* psz)
 {
-	if (strcmp(szLabel, "MEM") == 0)
+	if (strcmp(szLabel, "LMEM") == 0)
+	{
+		g_byEnableLowMem = atoi(psz);
+	}
+	else if (strcmp(szLabel, "MEM") == 0)
 	{
 		g_byEnableUpperMem = atoi(psz);
 	}

@@ -14,12 +14,14 @@
 extern BufferType g_bFdcRequest;
 extern BufferType g_bFdcResponse;
 
-static byte by_memory[0x8000];
+static byte by_low_memory[0x4000];
+static byte by_high_memory[0x8000];
 
 volatile byte g_byFdcIntrActive;
 volatile byte g_byRtcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
+volatile byte g_byEnableLowMem;
 volatile byte g_byEnableUpperMem;
 volatile byte g_byEnableWaitStates;
 volatile byte g_byEnableVhd = true;
@@ -115,7 +117,33 @@ void __not_in_flash_func(ServiceFdcRequestOperation)(word addr)
 void __not_in_flash_func(ServiceHighMemoryOperation)(word addr)
 {
     byte data;
-    byte* pby = &by_memory[addr-0x8000];
+    byte* pby = &by_high_memory[addr-0x8000];
+    
+    if (!get_gpio(RD_PIN))
+    {
+        FinishReadOperation(*pby);
+        return;
+    }
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while (get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+
+    if (!get_gpio(WR_PIN))
+    {
+        *pby = data;
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceLowMemoryOperation)(word addr)
+{
+    byte data;
+    byte* pby = &by_low_memory[addr-0x4000];
     
     if (!get_gpio(RD_PIN))
     {
@@ -411,6 +439,13 @@ void __not_in_flash_func(service_memory)(void)
             if (g_byEnableUpperMem)
             {
                 ServiceHighMemoryOperation(addr);
+            }
+        }
+        else if (addr >= 0x4000)
+        {
+            if (g_byEnableLowMem)
+            {
+                ServiceLowMemoryOperation(addr);
             }
         }
         else

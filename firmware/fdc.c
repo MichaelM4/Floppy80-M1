@@ -195,7 +195,7 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char*   g_pszVersion = {(char*)"0.1.5"};
+static char*   g_pszVersion = {(char*)"0.1.5b"};
 static FdcType g_FDC;
 
 FdcDriveType g_dtDives[MAX_DRIVES];
@@ -2933,7 +2933,11 @@ void FdcProcessStatusRequest(byte print)
 		FileClose(f);
 	}
 
-	sprintf(szBuf, "MEM=%d", g_byEnableUpperMem);
+	sprintf(szBuf, "HMEM=%d", g_byEnableUpperMem);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+
+	sprintf(szBuf, "LMEM=%d", g_byEnableLowMem);
 	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
 	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 
