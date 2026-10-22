@@ -9,7 +9,13 @@
 #include "fdc.h"
 #include "hdc.h"
 
+#if defined(TARGET_PICO) && !defined(TARGET_PICO2)
+#warning "Building with target PICO"
+#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();__nop(); __nop();
+#elif defined(TARGET_PICO2)
 #define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
+#endif
+
 
 extern BufferType g_bFdcRequest;
 extern BufferType g_bFdcResponse;

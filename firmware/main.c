@@ -181,7 +181,7 @@ int main()
 {
   #if defined(TARGET_PICO) && !defined(TARGET_PICO2)
    // Original Raspberry Pi Pico (RP2040): overclock to 200 MHz.
-   bool clock_ok = set_sys_clock_khz(250000, true);
+   bool clock_ok = set_sys_clock_khz(SYS_CLOCK, true);
   #elif defined(TARGET_PICO2)
    // Raspberry Pi Pico 2 (RP2350): use the SDK's default clock.
   #endif
