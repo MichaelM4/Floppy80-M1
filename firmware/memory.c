@@ -11,7 +11,7 @@
 
 #if defined(TARGET_PICO) && !defined(TARGET_PICO2)
 #warning "Building with target PICO"
-#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();__nop(); __nop();
+#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop();__nop(); __nop(); __nop();
 #elif defined(TARGET_PICO2)
 #define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
 #endif

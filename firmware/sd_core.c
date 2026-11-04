@@ -49,12 +49,7 @@ static FATFS *sd_get_fs_by_name(const char *name)
 // returns: 0 => card removed; 1 => card inserted;
 unsigned char get_cd(void)
 {
-	if (gpio_get(CD_PIN) == 0)
-	{
-		return 1;
-	}
-
-	return 0;
+    return (gpio_get(CD_PIN) == 0) ? 1 : 0;
 }
 
 //-----------------------------------------------------------------------------
