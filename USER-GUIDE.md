@@ -15,6 +15,15 @@ This file contains global configuration settings. The file and settings are
 optional, and all have meaningful defaults The settings are:
 * MEM - Used to enable / disable 32KB RAM; 1 = enabled (default); 0 = disabled
 * LMEM - Used to enable / disable 16KB of lower memory RAM; 1 = enabled; 0 = disabled (default)
+* SDKHZ - SD card SPI clock in kHz, e.g. SDKHZ=12500. The card is always mounted and system.cfg read at the
+  firmware's boot speed (5000 by default); the clock is then changed to this value. Accepted range is 1000 to 25000.
+  Not all cards work at higher speeds (a card that is too slow for the setting can make the Floppy80 lock up), so
+  increase it in steps, e.g. 8333, 10000, 12500, and test with your card. If it is missing, the boot speed is kept
+* L3RAM - Used to enable / disable 1KB of RAM at 3000h-33FFh; 1 = enabled; 0 = disabled (default)
+* L3RAMF - Name of a file (in the root folder) used to fill the L3RAM area at power on, e.g. L3RAMF=BOOT3000.BIN.
+  The file is a raw binary image loaded at 3000h, up to 1024 bytes. If it is shorter, the rest of the area is
+  zero. It is loaded each time the Floppy80 starts or is reset (before the Z80 runs), so it replaces whatever the
+  Z80 had written there. It only has an effect when L3RAM=1. If the file is missing the area is left as zeros
 * VHD - Used to enable / disable Hard Disk; 1 = enabled (default); 0 = disabled
 * WAIT - Used to enable / disable wait states 1 = enabled; 0 = disabled (default)
 
@@ -23,6 +32,9 @@ e.g.
 MEM=1
 VHD=0
 WAIT=0
+SDKHZ=6250
+L3RAM=1
+L3RAMF=test.rom
 ```
 
 Wait states are used to slow the Z80 CPU, to get it to wait for all
@@ -33,6 +45,22 @@ Wait states are useful for overclocked CPU's where the CPU outperforms
 the Floppy emulation, which is optimised for normal CPU speed.
 The issue with wait states is they are known to disrupt
 critical timed operations, such as formatting a floppy disk.
+
+### Option ROM
+
+The two parameters L3RAM and L3RAMF can be used to load a file into unused 
+address space at 3000H (12288 dec), it can be a maximum of 1024 bytes and
+was added to provide a way of potentially testing things like boot roms
+etc. The sd card has the source code for a very simple example in the folder
+testrom. It compiles at 3000h and just calls CLS and CHAR out routenes to
+display "Hello World!". it's loaded by default with the system.cfg provided.
+You can call it from basic, to test it:
+
+SYSTEM
+*
+type
+/12288
+
 
 ### boot.cfg
 Specify the default INI file to load at reset of the Floppy80

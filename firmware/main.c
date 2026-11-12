@@ -14,6 +14,7 @@
 #include "sd_core.h"
 #include "fdc.h"
 #include "hdc.h"
+#include "file.h"
 #include "system.h"
 #include "cli.h"
 #include "memory.h"
@@ -179,12 +180,9 @@ void InitGPIO(void)
 ///////////////////////////////////////////////////////////////////////////////
 int main()
 {
-  #if defined(TARGET_PICO) && !defined(TARGET_PICO2)
-   // Original Raspberry Pi Pico (RP2040): overclock to 200 MHz.
-   bool clock_ok = set_sys_clock_khz(SYS_CLOCK, true);
-  #elif defined(TARGET_PICO2)
-   // Raspberry Pi Pico 2 (RP2350): use the SDK's default clock.
-  #endif
+    // The system clock is already set when main() starts. The SDK does it at startup, including raising the
+    // core voltage when needed: SYS_CLK_MHZ comes from the SYSCLOCK CMake option (default 200 MHz on the
+    // Pico; the Pico 2 uses the SDK default of 150 MHz unless SYSCLOCK is given).
 
     stdio_init_all();
 
@@ -212,5 +210,6 @@ int main()
         FdcServiceStateMachine();
         HdcServiceStateMachine();
         ServiceCli();
+        FileServiceFlush();
     }
 }

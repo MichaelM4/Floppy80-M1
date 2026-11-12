@@ -1,0 +1,7 @@
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/picotool
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/picotoolTargets.cmake
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/picotoolTargets-release.cmake
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/picotoolConfig.cmake
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/picotoolConfigVersion.cmake
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/enc_bootloader.elf
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool/enc_bootloader_mbedtls.elf

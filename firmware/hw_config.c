@@ -36,6 +36,12 @@ socket, which SPI it is driven by, and how it is wired.
 //
 #include "diskio.h" /* Declarations of disk functions */
 
+// SD card SPI "boot" clock: used to initialise and mount the card and read system.cfg. CMake passes
+// SD_SPI_BAUD_HZ from the SD_SPI_KHZ option. SDKHZ in system.cfg can raise it afterwards (see sd_core.c).
+#ifndef SD_SPI_BAUD_HZ
+#define SD_SPI_BAUD_HZ (5000 * 1000)
+#endif
+
 // void spi0_dma_isr();
 
 /* 
@@ -64,7 +70,7 @@ static spi_t spis[] = {  // One for each SPI.
         /* The choice of SD card matters! SanDisk runs at the highest speed. PNY
            can only mangage 5 MHz. Those are all I've tried. */
         //.baud_rate = 1000 * 1000,
-        .baud_rate = 5 * 1000 * 1000,       // The limitation here is SPI slew rate.
+        .baud_rate = SD_SPI_BAUD_HZ,        // Set with -DSD_SPI_KHZ=nnn (see CMakeLists.txt). The limitation here is SPI slew rate.
         //.baud_rate = 25 * 1000 * 1000,    // Actual frequency: 20833333. Has
         // worked for me with SanDisk.
 

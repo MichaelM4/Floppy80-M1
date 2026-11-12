@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader_mbedtls/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

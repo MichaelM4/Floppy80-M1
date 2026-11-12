@@ -21,7 +21,10 @@ extern "C" {
 #endif
 
 typedef struct {
-	byte byIsOpen;
+	byte     byIsOpen;
+	byte     byDirty;          // data has been written but not yet synced to the SD card
+	uint32_t dwFirstDirtyMs;   // time (ms since boot) of the first unsynced write
+	uint32_t dwLastWriteMs;    // time (ms since boot) of the most recent unsynced write
 	FIL  f;
 } file;
 
@@ -61,7 +64,10 @@ uint32_t FileRead(file* fp, BYTE* pby, uint32_t nSize);
 uint32_t FileWrite(file* fp, BYTE* pby, uint32_t nSize);
 void     FileSeek(file* fp, int nOffset);
 void     FileTruncate(file* fp);
-void     FileFlush(file* fp);
+void     FileFlush(file* fp);          // marks the file dirty; synced by FileServiceFlush() (or immediately if SD_FLUSH_DELAY_MS is 0)
+void     FileServiceFlush(void);       // call regularly from the main loop (core 0)
+void     FileFlushAll(void);           // sync every dirty file now
+BYTE     FileEnableFastSeek(file* fp); // build a cluster link map for quick f_lseek() (FatFs)
 void     FileCloseAll(void);
 void     FileSystemInit(void);
 int      FileReadLine(file* fp, char szLine[], int nMaxLen);

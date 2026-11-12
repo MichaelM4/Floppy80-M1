@@ -3,7 +3,9 @@
 #define _H_DEFINES_
 
 #define ENABLE_DOUBLER 1
-#define ENABLE_LOGGING 1
+// Z80 register access logging (fdc_log, CLI "log" command) adds work to every bus access on core 1.
+// It is now off by default; enable it with cmake -DFDC_LOGGING=ON (defines ENABLE_LOGGING=1).
+// #define ENABLE_LOGGING 1
 
 //#pragma GCC optimize ("O0")
 #pragma GCC optimize ("O3")
@@ -227,6 +229,11 @@ extern volatile byte     g_byResetActive;
 extern volatile byte     g_byEnableIntr;
 extern volatile int32_t  g_nRotationCount;
 extern volatile byte     g_byEnableLowMem;
+extern volatile byte     g_byEnableL3Ram;
+extern char              g_szL3RamFile[64];   // L3RAMF= file loaded into the L3RAM area at power on
+
+#define L3RAM_ADDR  0x3000
+#define L3RAM_SIZE  0x400    // 3000h-33FFh
 extern volatile byte     g_byEnableUpperMem;
 extern volatile byte     g_byEnableWaitStates;
 extern volatile uint32_t g_dwLedCount;

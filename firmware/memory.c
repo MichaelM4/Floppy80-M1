@@ -21,6 +21,7 @@ extern BufferType g_bFdcRequest;
 extern BufferType g_bFdcResponse;
 
 static byte by_low_memory[0x4000];
+static byte by_l3_memory[L3RAM_SIZE];   // 3000h-33FFh (L3RAM)
 static byte by_high_memory[0x8000];
 
 volatile byte g_byFdcIntrActive;
@@ -28,6 +29,7 @@ volatile byte g_byRtcIntrActive;
 volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 volatile byte g_byEnableLowMem;
+volatile byte g_byEnableL3Ram;
 volatile byte g_byEnableUpperMem;
 volatile byte g_byEnableWaitStates;
 volatile byte g_byEnableVhd = true;
@@ -169,6 +171,43 @@ void __not_in_flash_func(ServiceLowMemoryOperation)(word addr)
     {
         *pby = data;
     }
+}
+
+//-----------------------------------------------------------------------------
+// RAM emulation for 3000h-33FFh (enabled with L3RAM=1 in system.cfg).
+// Same structure as ServiceLowMemoryOperation(). The range stops below the FDC
+// request/response buffers, which start at 3400h.
+void __not_in_flash_func(ServiceL3MemoryOperation)(word addr)
+{
+    byte data;
+    byte* pby = &by_l3_memory[addr-L3RAM_ADDR];
+    
+    if (!get_gpio(RD_PIN))
+    {
+        FinishReadOperation(*pby);
+        return;
+    }
+
+    clr_gpio(DATAB_OE_PIN);
+    NopDelay();
+    data = get_gpio_data_byte();
+    set_gpio(DATAB_OE_PIN);
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while (get_gpio(WR_PIN) && !get_gpio(MREQ_PIN));
+
+    if (!get_gpio(WR_PIN))
+    {
+        *pby = data;
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Gives SysInit() access to the L3RAM area so it can be preloaded from the L3RAMF file.
+// Only call this before core 1 is started (power on), not while the bus is being serviced.
+byte* MemGetL3Ram(void)
+{
+    return by_l3_memory;
 }
 
 //-----------------------------------------------------------------------------
@@ -490,6 +529,10 @@ void __not_in_flash_func(service_memory)(void)
                     else if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP))
                     {
                         ServiceFdcResponseOperation(addr);
+                    }
+                    else if ((addr >= L3RAM_ADDR) && (addr < (L3RAM_ADDR + L3RAM_SIZE)) && g_byEnableL3Ram)
+                    {
+                        ServiceL3MemoryOperation(addr);
                     }
 
                     break;

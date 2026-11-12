@@ -1,0 +1,2 @@
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/CMakeFiles/edit_cache.dir
+/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/CMakeFiles/rebuild_cache.dir

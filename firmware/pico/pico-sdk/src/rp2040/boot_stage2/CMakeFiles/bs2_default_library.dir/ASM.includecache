@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/root/github/Floppy80-v2-M1/firmware/pico/pico-sdk/src/rp2040/boot_stage2/bs2_default_padded_checksummed.S
+

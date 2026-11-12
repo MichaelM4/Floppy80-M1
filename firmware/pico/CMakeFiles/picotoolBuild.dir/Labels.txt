@@ -1,0 +1,14 @@
+# Target labels
+ picotoolBuild
+# Source files and their labels
+/root/github/Floppy80-v2-M1/firmware/pico/CMakeFiles/picotoolBuild
+/root/github/Floppy80-v2-M1/firmware/pico/CMakeFiles/picotoolBuild.rule
+/root/github/Floppy80-v2-M1/firmware/pico/CMakeFiles/picotoolBuild-complete.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule
+/root/github/Floppy80-v2-M1/firmware/pico/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule

@@ -311,6 +311,7 @@ void ProcessCommand(char* psz)
 
     if (stricmp(szCmd, "REBOOT") == 0)
     {
+        FileFlushAll();
         watchdog_reboot(0,0,0);
         return;
     }

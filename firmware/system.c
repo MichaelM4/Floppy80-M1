@@ -16,6 +16,7 @@
 
 #include "sd_core.h"
 #include "util.h"
+#include "memory.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +61,8 @@ void InitVars(void)
 	g_byResetActive      = true;
 	g_byEnableIntr       = false;
 	g_byEnableLowMem     = false;
+	g_byEnableL3Ram      = false;
+	g_szL3RamFile[0]     = 0;
 	g_byEnableUpperMem   = true;
 	g_byEnableWaitStates = false;
 	g_dwLedCount         = 0;
@@ -367,11 +370,71 @@ void UpdateCounters(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+char g_szL3RamFile[64];
+
+////////////////////////////////////////////////////////////////////////////////////
+// Copies a file name from a config line: skips leading blanks and drops trailing blanks.
+static void SysCopyFileName(char* pszSrc, char* pszDst, int nMaxLen)
+{
+	int nLen;
+
+	pszSrc = SkipBlanks(pszSrc);
+	strncpy(pszDst, pszSrc, nMaxLen-1);
+	pszDst[nMaxLen-1] = 0;
+
+	nLen = (int)strlen(pszDst);
+
+	while ((nLen > 0) && ((pszDst[nLen-1] == ' ') || (pszDst[nLen-1] == '\t') || (pszDst[nLen-1] == '\r') || (pszDst[nLen-1] == '\n')))
+	{
+		pszDst[--nLen] = 0;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Fills the L3RAM area (3000h-33FFh) from the file named by L3RAMF in system.cfg.
+// Runs from SysInit() at power on / reset, before core 1 starts servicing the Z80 bus.
+// A file shorter than L3RAM_SIZE leaves the rest of the area as zeros; extra data is ignored.
+static void SysLoadL3Ram(void)
+{
+	file* f;
+	byte* pby;
+
+	if (g_szL3RamFile[0] == 0)
+	{
+		return;
+	}
+
+	f = FileOpen(g_szL3RamFile, FA_READ);
+
+	if (f == NULL)
+	{
+		return;
+	}
+
+	pby = MemGetL3Ram();
+	memset(pby, 0, L3RAM_SIZE);
+	FileRead(f, pby, L3RAM_SIZE);
+	FileClose(f);
+}
+
+////////////////////////////////////////////////////////////////////////////////////
 void SysProcessConfigEntry(char szLabel[], char* psz)
 {
 	if (strcmp(szLabel, "LMEM") == 0)
 	{
 		g_byEnableLowMem = atoi(psz);
+	}
+	else if (strcmp(szLabel, "L3RAM") == 0)
+	{
+		g_byEnableL3Ram = atoi(psz);
+	}
+	else if (strcmp(szLabel, "SDKHZ") == 0)
+	{
+		g_dwSdSpiKhz = (DWORD)atoi(psz);
+	}
+	else if (strcmp(szLabel, "L3RAMF") == 0)
+	{
+		SysCopyFileName(psz, g_szL3RamFile, sizeof(g_szL3RamFile));
 	}
 	else if (strcmp(szLabel, "MEM") == 0)
 	{
@@ -391,7 +454,7 @@ void SysProcessConfigEntry(char szLabel[], char* psz)
 void SysInit(void)
 {
 	file* f;
-	char  szLine[64];
+	char  szLine[128];
 	char  szSection[16];
 	char  szLabel[32];
 	char* psz;
@@ -418,8 +481,11 @@ void SysInit(void)
 			SysProcessConfigEntry(szLabel, psz);
 		}
 
-		nLen = FileReadLine(f, (BYTE*)szLine, 126);
+		nLen = FileReadLine(f, (BYTE*)szLine, sizeof(szLine)-2);
 	}
 	
 	FileClose(f);	
+
+	SdApplyConfiguredClock();	// raise the SD card clock to SDKHZ (if set)
+	SysLoadL3Ram();
 }
