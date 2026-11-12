@@ -25,6 +25,20 @@ make Floppy80
 
 this will create Floppy80.uf2 file which you burn to the RPI PICO
 
+### Build options (speed / behaviour)
+
+Pass these on the first cmake command, e.g. `cmake -B build -S . -DSD_FLUSH_DELAY_MS=0`
+(with the VS Code extension, add them to the CMake configure arguments).
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `SD_SPI_KHZ` | `5000` | SD card SPI *boot* clock in kHz. The card is always mounted, and `system.cfg` read, at this speed (5000 = the original firmware). To go faster, set `SDKHZ=nnnn` in `system.cfg` (see USER-GUIDE.md) instead of changing this: cards and wiring differ, and a card that cannot keep up at the higher speed still boots at the safe one. |
+| `SD_FLUSH_DELAY_MS` | `200` | Idle time before buffered writes are synced (`f_sync`) to the SD card. `0` syncs after every write (original behaviour, slowest, safest if power can drop right after a write). |
+| `SD_FLUSH_MAX_MS` | `2000` | Longest time unsynced writes may stay buffered during continuous writing. |
+| `SD_CRC_ENABLED` | `ON` | Verify CRC on SD data blocks. `OFF` is a little faster at high SPI clocks. |
+| `FDC_LOGGING` | `OFF` | Log Z80 register accesses for the CLI log command. Adds work to every bus access on core 1, so leave it off unless you are debugging. |
+| `SYSCLOCK` | `200` (Pico), SDK default `150` (Pico 2) | System clock in MHz, e.g. `-DSYSCLOCK=150`. Works for both boards. The SDK applies it before `main()` (SDK 2.1.1 or later). The `NopDelay()` bus delays in `memory.c` are tuned for 200 MHz (Pico) and 150 MHz (Pico 2), so test other speeds with a real Z80. The current value is shown on the `Clock` line of the status listing. |
+
 Alternately you can use VSCode and the RPI Pico extension.
 
 ### Background Reading

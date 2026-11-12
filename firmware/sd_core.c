@@ -15,6 +15,8 @@
 #include "f_util.h"
 #include "hw_config.h"
 #include "sd_card.h"
+#include "sd_spi.h"
+#include "hardware/spi.h"
 #include "util.h"
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,12 @@
 volatile BYTE  sd_byCardInialized;
 volatile DWORD g_dwSdCardPresenceCount;
 volatile DWORD g_dwSdCardMaxPresenceCount;
+volatile DWORD g_dwSdSpiKhz;		// SDKHZ from system.cfg; 0 = stay at the boot speed
+
+static DWORD   sd_dwBootBaud;		// SPI clock the card is initialised and mounted at (SD_SPI_KHZ build option)
+
+#define SD_KHZ_MIN   1000
+#define SD_KHZ_MAX  25000			// highest SPI clock an SD card is allowed to use
 
 static F_SPACE sd_Size;
 static BYTE    sd_byCurrentCdState;
@@ -49,12 +57,7 @@ static FATFS *sd_get_fs_by_name(const char *name)
 // returns: 0 => card removed; 1 => card inserted;
 unsigned char get_cd(void)
 {
-	if (gpio_get(CD_PIN) == 0)
-	{
-		return 1;
-	}
-
-	return 0;
+    return (gpio_get(CD_PIN) == 0) ? 1 : 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -128,6 +131,62 @@ BYTE sd_getfreespace(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+// The card is always initialised and mounted at the boot speed (SD_SPI_KHZ, 5 MHz by default),
+// so system.cfg can be read on any card. Once system.cfg has been read, SDKHZ raises (or lowers)
+// the clock for normal operation. A card that is inserted later is handled the same way.
+void SdApplyConfiguredClock(void)
+{
+	sd_card_t* pSD = sd_get_by_num(0);
+	DWORD      dwKhz = g_dwSdSpiKhz;
+
+	if (pSD == NULL)
+	{
+		return;
+	}
+
+	if (sd_dwBootBaud == 0)
+	{
+		sd_dwBootBaud = pSD->spi->baud_rate;
+	}
+
+	if (dwKhz != 0)
+	{
+		if (dwKhz < SD_KHZ_MIN)
+		{
+			dwKhz = SD_KHZ_MIN;
+		}
+
+		if (dwKhz > SD_KHZ_MAX)
+		{
+			dwKhz = SD_KHZ_MAX;
+		}
+
+		pSD->spi->baud_rate = dwKhz * 1000;
+	}
+	else
+	{
+		pSD->spi->baud_rate = sd_dwBootBaud;
+	}
+
+	sd_spi_go_high_frequency(pSD);
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Returns the SPI clock the SD card interface is currently set to, in kHz (0 if the SPI is not
+// initialised). This is the rate the hardware actually runs at, which can be below the requested one.
+DWORD SdGetSpiKhz(void)
+{
+	sd_card_t* pSD = sd_get_by_num(0);
+
+	if ((pSD == NULL) || (pSD->spi == NULL) || (pSD->spi->initialized == false))
+	{
+		return 0;
+	}
+
+	return (DWORD)(spi_get_baudrate(pSD->spi->hw_inst) / 1000);
+}
+
+////////////////////////////////////////////////////////////////////////////////////
 void MountSdCard(void)
 {
 	FRESULT fr;
@@ -152,6 +211,23 @@ void MountSdCard(void)
 			++sd_wCardInitTries;
 			sd_byCardInialized = FALSE;
 
+			// initialise the card at the boot speed
+			{
+				sd_card_t* pSD = sd_get_by_num(0);
+
+				if (pSD != NULL)
+				{
+					if (sd_dwBootBaud == 0)
+					{
+						sd_dwBootBaud = pSD->spi->baud_rate;
+					}
+					else
+					{
+						pSD->spi->baud_rate = sd_dwBootBaud;
+					}
+				}
+			}
+
 			if (!sd_init_driver())
 			{
 				return;
@@ -175,6 +251,7 @@ void MountSdCard(void)
 				if (nRet == 0)
 				{
 					sd_byCardInialized = TRUE;
+					SdApplyConfiguredClock();
 				}
 				else
 				{

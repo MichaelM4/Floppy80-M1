@@ -38,7 +38,7 @@ typedef struct {
 
 static time_t epochtime;
 
-bool rtc_get_datetime(datetime_t* datetime)
+bool fatfs_rtc_get_datetime(datetime_t* datetime)
 {
     datetime->min = 0;
     datetime->hour = 0;
@@ -56,7 +56,7 @@ typedef struct rtc_save {
 static rtc_save_t rtc_save __attribute__((section(".uninitialized_data")));
 
 static void update_epochtime() {
-    bool rc = rtc_get_datetime(&rtc_save.datetime);
+    bool rc = fatfs_rtc_get_datetime(&rtc_save.datetime);
     if (rc) {
         rtc_save.signature = 0xBABEBABE;
         struct tm timeinfo = {
@@ -90,7 +90,7 @@ time_t time(time_t *pxTime) {
 void time_init() {
 //    rtc_init();
     datetime_t t = {0, 0, 0, 0, 0, 0, 0};
-    rtc_get_datetime(&t);
+    fatfs_rtc_get_datetime(&t);
     if (!t.year && rtc_save.datetime.year) {
         uint32_t xor_checksum = calculate_checksum(
             (uint32_t *)&rtc_save, offsetof(rtc_save_t, checksum));
@@ -105,7 +105,7 @@ void time_init() {
 // Called by FatFs:
 DWORD get_fattime(void) {
     datetime_t t = {0, 0, 0, 0, 0, 0, 0};
-    bool rc = rtc_get_datetime(&t);
+    bool rc = fatfs_rtc_get_datetime(&t);
     if (!rc) return 0;
 
     DWORD fattime = 0;

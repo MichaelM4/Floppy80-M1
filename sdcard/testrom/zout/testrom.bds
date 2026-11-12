@@ -1,0 +1,44 @@
+binary-debuggable-source
+0000 0000 f testrom.asm
+0000 0000 s ;
+0000 0000 s ; testrom
+0000 0000 s ;
+3000 3000 s 	org	$3000
+3000 3000 s start:
+3000 3000 d cdc901
+3000 3000 u 03 01
+3000 3000 s 	call	01C9H		;cls
+3003 3003 d 211030
+3003 3003 u 03 01
+3003 3003 s 	ld	hl,msg		;start of message
+3006 3006 d 7e
+3006 3006 u 01 01
+3006 3006 s lp0:	ld	a,(hl)
+3007 3007 d b7
+3007 3007 u 01 01
+3007 3007 s 	or	a
+3008 3008 d c8
+3008 3008 u 01 01
+3008 3008 s 	rz			;return if zero
+3009 3009 d cd3300
+3009 3009 u 03 01
+3009 3009 s 	call	0033H		;send each char
+300c 300c d 23
+300c 300c u 01 01
+300c 300c s 	inc	hl
+300d 300d d 18f7
+300d 300d u 02 01
+300d 300d s 	jr	lp0		;keep going until end of txt 0
+300f 300f d c9
+300f 300f u 01 01
+300f 300f s done:	ret
+3010 3010 s ;
+3010 3010 d 48656c6c6f20576f726c64210d00
+3010 3010 u 0e 02
+3010 3010 s msg:		ascii	'Hello World!',13,0
+301e 301e s 	end	start
+3000 e
+3006 a lp0
+3000 a start
+3010 a msg
+300f a done

@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/root/github/Floppy80-v2-M1/firmware/pico2/_deps/picotool-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

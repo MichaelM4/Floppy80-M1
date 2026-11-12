@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/CMakeFiles/enc_bootloader"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/CMakeFiles/enc_bootloader.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/CMakeFiles/enc_bootloader-complete.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-build.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-configure.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-download.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-install.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-mkdir.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-patch.rule"
+		},
+		{
+			"file" : "/root/github/Floppy80-v2-M1/firmware/pico/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"enc_bootloader"
+		],
+		"name" : "enc_bootloader"
+	}
+}

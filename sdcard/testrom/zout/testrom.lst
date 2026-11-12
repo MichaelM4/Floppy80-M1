@@ -1,0 +1,38 @@
+   1:				;
+   2:				; testrom
+   3:				;
+   4:     -	3000          		org	$3000
+   5:     -	3000          	start:
+   6:    0+17	3000  CDC901  		call	01C9H		;cls
+   7:   17+10	3003  211030  		ld	hl,msg		;start of message
+   8:   27+7	3006  7E      	lp0:	ld	a,(hl)
+   9:   34+4	3007  B7      		or	a
+  10:   38+5+6	3008  C8      		rz			;return if zero
+  11:   43+17	3009  CD3300  		call	0033H		;send each char
+  12:   60+6	300C  23      		inc	hl
+  13:   66+12	300D  18F7    		jr	lp0		;keep going until end of txt 0
+  14:   78+10	300F  C9      	done:	ret
+  15:				;
+  16:     -	3010  48656C6C	msg:		ascii	'Hello World!',13,0
+	              6F20576F
+	              726C6421
+	              0D00
+  17:     -	3000          		end	start
+
+
+
+Statistics:
+
+     4	passes
+     0	jr promotions
+     4	symbols
+    30	bytes
+
+
+
+Symbol Table:
+
+done            300F      12303
+lp0             3006      12294
+msg             3010      12304
+start           3000      12288

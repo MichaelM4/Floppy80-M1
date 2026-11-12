@@ -3,12 +3,36 @@
 #include "system.h"
 #include "string.h"
 
+#ifndef MFC
+#include "pico/stdlib.h"
+#endif
+
+// Buffered writes are synced to the SD card after the file has been idle for SD_FLUSH_DELAY_MS,
+// and never later than SD_FLUSH_MAX_MS after the first unsynced write.
+// SD_FLUSH_DELAY_MS = 0 gives the original behaviour (f_sync after every write).
+#ifndef SD_FLUSH_DELAY_MS
+#define SD_FLUSH_DELAY_MS 200
+#endif
+#ifndef SD_FLUSH_MAX_MS
+#define SD_FLUSH_MAX_MS 2000
+#endif
+
+// Number of 32-bit entries in each file's cluster link map (2 per fragment + 1).
+#ifndef LINKMAP_ENTRIES
+#define LINKMAP_ENTRIES 128
+#endif
+
 //-----------------------------------------------------------------------------
 
 static file    g_fFiles[MAX_FILES];
 static FRESULT fr;  /* Return value */
 static DIR     dj;  /* Directory object */
 static FILINFO fno; /* File information */
+
+#ifndef MFC
+static DWORD g_dwLinkMap[MAX_FILES][LINKMAP_ENTRIES];
+static byte  g_byAnyDirty = FALSE;
+#endif
 
 //-----------------------------------------------------------------------------
 file* FileOpen(char* pszFileName, BYTE byMode)
@@ -67,6 +91,7 @@ file* FileOpen(char* pszFileName, BYTE byMode)
 	if (fr == FR_OK)
 	{
 		g_fFiles[i].byIsOpen = TRUE;
+		g_fFiles[i].byDirty  = FALSE;
 		return &g_fFiles[i];
 	}
 	
@@ -88,6 +113,7 @@ void FileClose(file* fp)
 #endif
 
 	fp->byIsOpen = FALSE;
+	fp->byDirty  = FALSE;	// f_close() syncs
 }
 
 //-----------------------------------------------------------------------------
@@ -134,6 +160,12 @@ uint32_t FileWrite(file* fp, BYTE* pby, uint32_t nSize)
 	fp->f.Write(pby, nSize);
 	bw = nSize;
 #else
+	// a file with a link map cannot grow; drop the map if this write would extend the file
+	if ((fp->f.cltbl != NULL) && ((f_tell(&fp->f) + nSize) > f_size(&fp->f)))
+	{
+		fp->f.cltbl = NULL;
+	}
+
 	f_write(&fp->f, pby, nSize, &bw);
 #endif
 
@@ -151,6 +183,12 @@ void FileSeek(file* fp, int nOffset)
 #ifdef MFC
 	int n = (int)fp->f.Seek(nOffset, CFile::begin);
 #else
+	// with a link map, seeking to or past the end of the file would be clipped; drop the map instead
+	if ((fp->f.cltbl != NULL) && ((FSIZE_t)nOffset >= f_size(&fp->f)))
+	{
+		fp->f.cltbl = NULL;
+	}
+
 	f_lseek(&fp->f, nOffset);
 #endif
 }
@@ -158,16 +196,139 @@ void FileSeek(file* fp, int nOffset)
 //-----------------------------------------------------------------------------
 void FileFlush(file* fp)
 {
+	if ((fp == NULL) || (fp->byIsOpen == FALSE))
+	{
+		return;
+	}
+
 #ifdef MFC
 	fp->f.Flush();
+#elif (SD_FLUSH_DELAY_MS > 0)
+	// Deferred: f_write() has already pushed full sectors to the card. The remaining partial
+	// sector and the directory entry are written by FileServiceFlush() once the file is idle.
+	uint32_t now = to_ms_since_boot(get_absolute_time());
+
+	if (fp->byDirty == FALSE)
+	{
+		fp->byDirty = TRUE;
+		fp->dwFirstDirtyMs = now;
+	}
+
+	fp->dwLastWriteMs = now;
+	g_byAnyDirty = TRUE;
 #else
 	f_sync(&fp->f);
 #endif
 }
 
 //-----------------------------------------------------------------------------
+// Syncs files whose last write is older than SD_FLUSH_DELAY_MS (or whose oldest unsynced
+// write is older than SD_FLUSH_MAX_MS). Call from the main loop on core 0.
+void FileServiceFlush(void)
+{
+#if !defined(MFC) && (SD_FLUSH_DELAY_MS > 0)
+	uint32_t now;
+	int      i;
+	byte     byStillDirty = FALSE;
+
+	if (g_byAnyDirty == FALSE)
+	{
+		return;
+	}
+
+	now = to_ms_since_boot(get_absolute_time());
+
+	for (i = 0; i < MAX_FILES; ++i)
+	{
+		file* fp = &g_fFiles[i];
+
+		if ((fp->byIsOpen == FALSE) || (fp->byDirty == FALSE))
+		{
+			continue;
+		}
+
+		if (((now - fp->dwLastWriteMs) >= SD_FLUSH_DELAY_MS) || ((now - fp->dwFirstDirtyMs) >= SD_FLUSH_MAX_MS))
+		{
+			f_sync(&fp->f);
+			fp->byDirty = FALSE;
+		}
+		else
+		{
+			byStillDirty = TRUE;
+		}
+	}
+
+	g_byAnyDirty = byStillDirty;
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Syncs every file that has unsynced writes, right now.
+void FileFlushAll(void)
+{
+#if !defined(MFC) && (SD_FLUSH_DELAY_MS > 0)
+	int i;
+
+	for (i = 0; i < MAX_FILES; ++i)
+	{
+		file* fp = &g_fFiles[i];
+
+		if (fp->byIsOpen && fp->byDirty)
+		{
+			f_sync(&fp->f);
+			fp->byDirty = FALSE;
+		}
+	}
+
+	g_byAnyDirty = FALSE;
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Builds a cluster link map so that f_lseek() jumps straight to the right cluster instead of
+// walking the FAT chain from the start of the file. Use on disk images that are normally
+// opened read/write and are not growing. If a later write or seek needs the file to grow,
+// FileWrite()/FileSeek() quietly drop the map and carry on with normal seeking.
+// Returns TRUE if the map was built (it fails if the file has too many fragments).
+BYTE FileEnableFastSeek(file* fp)
+{
+#ifdef MFC
+	return FALSE;
+#else
+	int i;
+
+	if ((fp == NULL) || (fp->byIsOpen == FALSE))
+	{
+		return FALSE;
+	}
+
+	i = (int)(fp - g_fFiles);
+
+	if ((i < 0) || (i >= MAX_FILES))
+	{
+		return FALSE;
+	}
+
+	g_dwLinkMap[i][0] = LINKMAP_ENTRIES;
+	fp->f.cltbl = g_dwLinkMap[i];
+
+	if (f_lseek(&fp->f, CREATE_LINKMAP) != FR_OK)
+	{
+		fp->f.cltbl = NULL;
+		return FALSE;
+	}
+
+	f_lseek(&fp->f, 0);
+	return TRUE;
+#endif
+}
+
+//-----------------------------------------------------------------------------
 void FileTruncate(file* fp)
 {
+#ifndef MFC
+	fp->f.cltbl = NULL;	// truncating changes the cluster chain
+#endif
 	f_truncate(&fp->f);
 }
 

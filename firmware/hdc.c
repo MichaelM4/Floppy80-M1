@@ -112,6 +112,8 @@ void HdcInit(void)
 
 			if (Vhd[i].f != NULL)
 			{
+				FileEnableFastSeek(Vhd[i].f);
+
 				FileRead(Vhd[i].f, Vhd[i].byHeader, sizeof(Vhd[i].byHeader));
 
 				Vhd[i].nHeads     = Vhd[i].byHeader[26];

@@ -15,6 +15,7 @@
 #include "crc.h"
 #include "fdc.h"
 #include "hdc.h"
+#include "hardware/clocks.h"
 
 // #pragma GCC optimize ("Og")
 
@@ -195,7 +196,7 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char*   g_pszVersion = {(char*)"0.1.6"};
+static char*   g_pszVersion = {(char*)"0.2.1"};
 static FdcType g_FDC;
 
 FdcDriveType g_dtDives[MAX_DRIVES];
@@ -1236,6 +1237,8 @@ void FdcMountDmkDrive(int nDrive)
 	{
 		return;
 	}
+
+	FileEnableFastSeek(g_dtDives[nDrive].f);
 
 	g_dtDives[nDrive].nDriveFormat = eDMK;
 
@@ -2688,7 +2691,11 @@ void FdcBuildDamTable(TrackType* ptdTrack)
 }
 
 //-----------------------------------------------------------------------------
-void FdcWriteDmkTrack(TrackType* ptdTrack)
+void FdcWriteTrack(TrackType* ptdTrack);	// defined below
+
+// Writes part of the track buffer to the DMK file. nStart/nLen select the bytes to write
+// (offsets into ptdTrack->byTrackData); nLen <= 0 (or an out-of-range request) writes the whole track.
+static void FdcWriteDmkTrackPart(TrackType* ptdTrack, int nStart, int nLen)
 {
 	if ((ptdTrack->nDrive < 0) || (ptdTrack->nDrive >= MAX_DRIVES))
 	{
@@ -2741,9 +2748,53 @@ void FdcWriteDmkTrack(TrackType* ptdTrack)
 
 	int nFileOffset = FdcGetTrackOffset(ptdTrack->nDrive, ptdTrack->nSide, ptdTrack->nTrack);
 
-	FileSeek(g_dtDives[ptdTrack->nDrive].f, nFileOffset);
-	FileWrite(g_dtDives[ptdTrack->nDrive].f, ptdTrack->byTrackData, ptdTrack->nTrackSize);
+	if ((nLen <= 0) || (nStart < 0) || ((nStart + nLen) > ptdTrack->nTrackSize))
+	{
+		nStart = 0;
+		nLen   = ptdTrack->nTrackSize;
+	}
+
+	FileSeek(g_dtDives[ptdTrack->nDrive].f, nFileOffset + nStart);
+	FileWrite(g_dtDives[ptdTrack->nDrive].f, ptdTrack->byTrackData + nStart, nLen);
 	FileFlush(g_dtDives[ptdTrack->nDrive].f);
+}
+
+//-----------------------------------------------------------------------------
+void FdcWriteDmkTrack(TrackType* ptdTrack)
+{
+	FdcWriteDmkTrackPart(ptdTrack, 0, 0);
+}
+
+//-----------------------------------------------------------------------------
+// After a sector write only the data address mark, the sector data and its CRC have changed,
+// so write just those bytes instead of the whole track (about 260 bytes instead of ~6 KB).
+static void FdcWriteTrackSector(TrackType* ptdTrack, int nSector, int nSectorSize)
+{
+	int nMark;
+	int nStep;
+
+	if ((ptdTrack->nType != eDMK) || (nSector < 0) || (nSector >= 0x80))
+	{
+		FdcWriteTrack(ptdTrack);
+		return;
+	}
+
+	nMark = ptdTrack->nSectorDataMarkOffset[nSector];
+	nStep = ptdTrack->nDataSize[nSector];
+
+	if (nStep < 1)
+	{
+		nStep = 1;
+	}
+
+	if (nMark <= 0)
+	{
+		FdcWriteTrack(ptdTrack);
+		return;
+	}
+
+	// mark byte + data + 2 CRC bytes, plus one spare byte; doubled when the track stores single density bytes twice
+	FdcWriteDmkTrackPart(ptdTrack, nMark, (nSectorSize + 3) * nStep);
 }
 
 //-----------------------------------------------------------------------------
@@ -2782,8 +2833,8 @@ void FdcServiceWriteSector(void)
 			// perform a CRC on the sector data (including preceeding 4 bytes) and update sector CRC value
 			FdcGenerateSectorCRC(g_stSector.nSector, g_stSector.nSectorSize);
 			
-			// flush track to SD-Card
-			FdcWriteTrack(&g_tdTrack);
+			// flush the modified sector to SD-Card
+			FdcWriteTrackSector(&g_tdTrack, g_stSector.nSector, g_stSector.nSectorSize);
 		
 			++g_FDC.nServiceState;
 			g_FDC.nStateTimer = 0;
@@ -2885,6 +2936,8 @@ void FdcProcessStatusRequest(byte print)
 {
 	char szBuf[64];
 	char szLineEnd[4];
+	char speed[5];
+	char sdspeed[8];
 	int  i;
 	
 	if (print)
@@ -2897,9 +2950,19 @@ void FdcProcessStatusRequest(byte print)
 	}
 
     memset(&g_bFdcResponse, 0, sizeof(g_bFdcResponse));
+	snprintf(speed,sizeof(speed),"%d", (unsigned int)(clock_get_hz(clk_sys) / 1000000));
+	snprintf(sdspeed,sizeof(sdspeed),"%u", (unsigned int)SdGetSpiKhz());
 
-	strcpy_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Pico FDC Version ");
+	strcpy_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Pico FDC ");
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_pszVersion);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"Clock ");
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, speed);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"mhz");
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"SPI ");
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, sdspeed);
+	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"khz");
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, (char*)"BootIni=");
 	strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_szBootConfig);
@@ -2939,6 +3002,18 @@ void FdcProcessStatusRequest(byte print)
 
 	sprintf(szBuf, "LMEM=%d", g_byEnableLowMem);
 	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+
+	sprintf(szBuf, "L3RAM=%d", g_byEnableL3Ram);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+
+	sprintf(szBuf, "SDKHZ=%d", (int)g_dwSdSpiKhz);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, (char*)"L3RAMF=");
+	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, g_szL3RamFile);
 	strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 
 	sprintf(szBuf, "VHD=%d", g_byEnableVhd);

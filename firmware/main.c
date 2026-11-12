@@ -14,6 +14,7 @@
 #include "sd_core.h"
 #include "fdc.h"
 #include "hdc.h"
+#include "file.h"
 #include "system.h"
 #include "cli.h"
 #include "memory.h"
@@ -179,6 +180,10 @@ void InitGPIO(void)
 ///////////////////////////////////////////////////////////////////////////////
 int main()
 {
+    // The system clock is already set when main() starts. The SDK does it at startup, including raising the
+    // core voltage when needed: SYS_CLK_MHZ comes from the SYSCLOCK CMake option (default 200 MHz on the
+    // Pico; the Pico 2 uses the SDK default of 150 MHz unless SYSCLOCK is given).
+
     stdio_init_all();
 
     InitGPIO();
@@ -205,5 +210,6 @@ int main()
         FdcServiceStateMachine();
         HdcServiceStateMachine();
         ServiceCli();
+        FileServiceFlush();
     }
 }
